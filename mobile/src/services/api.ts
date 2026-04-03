@@ -1,5 +1,11 @@
-const API_KEY = 'AIzaSyAzsKHM6TADTiPFsaY55gFGwbJHnKtQTdc';
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+import Constants from 'expo-constants';
+
+const API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GEMINI_API_KEY || process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const API_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+// Simple cache for API responses
+const responseCache = new Map<string, string>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -33,6 +39,15 @@ export interface GeminiResponse {
 
 export const sendMessageToAPI = async (messages: ChatMessage[]): Promise<string> => {
   try {
+    // Create cache key from last few messages
+    const cacheKey = messages.slice(-3).map(msg => `${msg.role}:${msg.content}`).join('|');
+    const cached = responseCache.get(cacheKey);
+    
+    if (cached) {
+      console.log('Using cached response');
+      return cached;
+    }
+
     // Extract system message separately
     const systemMessage = messages.find(msg => msg.role === 'system')?.content;
     
@@ -75,7 +90,17 @@ export const sendMessageToAPI = async (messages: ChatMessage[]): Promise<string>
     const data: GeminiResponse = await response.json();
     
     if (data.candidates && data.candidates.length > 0) {
-      return data.candidates[0].content.parts[0].text;
+      const responseText = data.candidates[0].content.parts[0].text;
+      
+      // Cache the response
+      responseCache.set(cacheKey, responseText);
+      
+      // Clear cache after duration
+      setTimeout(() => {
+        responseCache.delete(cacheKey);
+      }, CACHE_DURATION);
+      
+      return responseText;
     } else {
       throw new Error('No response from Gemini API');
     }

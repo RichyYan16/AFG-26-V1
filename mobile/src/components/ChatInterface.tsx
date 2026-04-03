@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -16,6 +16,59 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Send, User, Bot, Sparkles, MoreVertical, Plus } from 'lucide-react-native';
 import { Message } from '../types';
 import { sendMessageToAPI, ChatMessage } from '../services/api';
+
+// Memoized message component
+const MessageItem = React.memo(({ item }: { item: Message }) => {
+    const isUser = item.role === 'user';
+
+    return (
+        <View
+            style={[
+                styles.messageWrapper,
+                isUser ? styles.userWrapper : styles.aiWrapper,
+            ]}
+        >
+            <View style={styles.avatarContainer}>
+                {isUser ? (
+                    <View style={[styles.avatar, styles.userAvatar]}>
+                        <User size={16} color={palette.textOnAccent} />
+                    </View>
+                ) : (
+                    <LinearGradient
+                        colors={[palette.assistantGradientStart, palette.assistantGradientEnd]}
+                        style={styles.avatar}
+                    >
+                        <Bot size={16} color={palette.textOnAccent} />
+                    </LinearGradient>
+                )}
+            </View>
+
+            <View style={styles.messageContent}>
+                <Text style={styles.roleText}>{isUser ? 'You' : 'Assistant'}</Text>
+                <View
+                    style={[
+                        styles.bubble,
+                        isUser ? styles.userBubble : styles.aiBubble,
+                    ]}
+                >
+                    {isUser ? (
+                        <LinearGradient
+                            colors={[palette.userGradientStart, palette.userGradientEnd]}
+                            style={styles.gradientBubble}
+                        >
+                            <Text style={styles.userText}>{item.content}</Text>
+                        </LinearGradient>
+                    ) : (
+                        <Text style={styles.aiText}>{item.content}</Text>
+                    )}
+                </View>
+                <Text style={styles.timeText}>
+                    {item.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+            </View>
+        </View>
+    );
+});
 
 const palette = {
     background: '#F5FBF4',
@@ -51,7 +104,7 @@ const ChatInterface: React.FC = () => {
     const [isTyping, setIsTyping] = useState(false);
     const flatListRef = useRef<FlatList>(null);
 
-    const sendMessage = async () => {
+    const sendMessage = useCallback(async () => {
         if (!input.trim()) return;
 
         const userMessage: Message = {
@@ -62,6 +115,7 @@ const ChatInterface: React.FC = () => {
         };
 
         setMessages((prev) => [...prev, userMessage]);
+        const currentInput = input.trim();
         setInput('');
         setIsTyping(true);
 
@@ -73,7 +127,7 @@ const ChatInterface: React.FC = () => {
             }));
             apiMessages.push({
                 role: 'user',
-                content: input.trim()
+                content: currentInput
             });
 
             // Call the API
@@ -105,7 +159,7 @@ const ChatInterface: React.FC = () => {
         } finally {
             setIsTyping(false);
         }
-    };
+    }, [input, messages]);
 
     useEffect(() => {
         if (messages.length > 0) {
@@ -114,58 +168,6 @@ const ChatInterface: React.FC = () => {
             }, 100);
         }
     }, [messages, isTyping]);
-
-    const renderMessage = ({ item }: { item: Message }) => {
-        const isUser = item.role === 'user';
-
-        return (
-            <View
-                style={[
-                    styles.messageWrapper,
-                    isUser ? styles.userWrapper : styles.aiWrapper,
-                ]}
-            >
-                <View style={styles.avatarContainer}>
-                    {isUser ? (
-                        <View style={[styles.avatar, styles.userAvatar]}>
-                            <User size={16} color={palette.textOnAccent} />
-                        </View>
-                    ) : (
-                        <LinearGradient
-                            colors={[palette.assistantGradientStart, palette.assistantGradientEnd]}
-                            style={styles.avatar}
-                        >
-                            <Bot size={16} color={palette.textOnAccent} />
-                        </LinearGradient>
-                    )}
-                </View>
-
-                <View style={styles.messageContent}>
-                    <Text style={styles.roleText}>{isUser ? 'You' : 'Assistant'}</Text>
-                    <View
-                        style={[
-                            styles.bubble,
-                            isUser ? styles.userBubble : styles.aiBubble,
-                        ]}
-                    >
-                        {isUser ? (
-                            <LinearGradient
-                                colors={[palette.userGradientStart, palette.userGradientEnd]}
-                                style={styles.gradientBubble}
-                            >
-                                <Text style={styles.userText}>{item.content}</Text>
-                            </LinearGradient>
-                        ) : (
-                            <Text style={styles.aiText}>{item.content}</Text>
-                        )}
-                    </View>
-                    <Text style={styles.timeText}>
-                        {item.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                </View>
-            </View>
-        );
-    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -193,9 +195,19 @@ const ChatInterface: React.FC = () => {
                 ref={flatListRef}
                 data={messages}
                 keyExtractor={(item) => item.id}
-                renderItem={renderMessage}
+                renderItem={({ item }) => <MessageItem item={item} />}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={10}
+                windowSize={10}
+                getItemLayout={(data, index) => ({
+                    length: 100, // Approximate item height
+                    offset: 100 * index,
+                    index,
+                })}
                 ListFooterComponent={
                     isTyping ? (
                         <View style={styles.typingContainer}>

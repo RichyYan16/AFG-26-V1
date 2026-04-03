@@ -30,17 +30,17 @@ async function runTest() {
 
   // Test Case 1: Confusion
   const confusionAnswers: DiagnosticAnswers = {
-    understandsQuestion: "partly",
-    canSubmitBadInFiveMinutes: "no",
-    strongestEmotion: "frustrated",
-    taskScope: "unclear",
-    gradeWorry: "high",
+    internalVoice: "I can't figure this out, what if I'm not smart enough?",
+    eightyPercentThought: "There's no way my work will be good enough for a passing grade",
+    whyBestWork: "I've tried different approaches but none of them seem to work",
+    avoidanceDuration: "I've been stuck for about 30 minutes",
+    helpSeeking: "I haven't asked for help because I'm embarrassed",
   };
 
   console.log("\n📝 TEST 1: Confusion Example");
   console.log("─".repeat(70));
-  console.log("Understands question: partly");
-  console.log("Can submit bad work in 5 min: no");
+  console.log("Internal Voice: I can't figure this out, what if I'm not smart enough?");
+  console.log("80% Thought: There's no way my work will be good enough");
   console.log("\n⏳ Running diagnosis...\n");
 
   try {

@@ -15,11 +15,10 @@ import type {
   StuckType,
   StudentProfile,
   TrendInsight,
-} from "@/model";
+} from "@/model/new/types";
 
 type AppTab =
   | "home"
-  | "context"
   | "diagnosis"
   | "result"
   | "insights"
@@ -29,11 +28,11 @@ const STORAGE_KEY = "stuck_sessions_v1";
 const MAX_HISTORY = 300;
 
 const QUESTION_TITLES: Record<AdaptiveQuestion["id"], string> = {
-  understandsQuestion: "Understanding",
-  canSubmitBadInFiveMinutes: "Rough Submission",
-  strongestEmotion: "Emotion",
-  taskScope: "Task Scope",
-  gradeWorry: "Grade Worry",
+  internalVoice: "Internal Voice",
+  eightyPercentThought: "80% Thought",
+  whyBestWork: "Why Best Work",
+  avoidanceDuration: "Avoidance Duration",
+  helpSeeking: "Asking for Help",
 };
 
 const STUCK_TYPE_LABELS: Record<StuckType, string> = {
@@ -53,45 +52,27 @@ const OUTCOME_LABELS: Record<SessionOutcome, string> = {
 
 const TAB_LABELS: Record<AppTab, string> = {
   home: "Home",
-  context: "Context",
   diagnosis: "Diagnosis",
   result: "Plan",
   insights: "Insights",
   history: "History",
 };
 
-const DEFAULT_CONTEXT: Required<
-  Pick<
-    DiagnosticContext,
-    | "subject"
-    | "assignmentType"
-    | "timeStuckMinutes"
-    | "tasksOpenCount"
-    | "energyLevel"
-    | "panicLevel"
-    | "repeatedRereading"
-    | "excessiveEditing"
-  >
-> = {
+const DEFAULT_CONTEXT: DiagnosticContext = {
   subject: "",
   assignmentType: "Homework",
   timeStuckMinutes: 30,
-  tasksOpenCount: 1,
-  energyLevel: 3,
-  panicLevel: 3,
-  repeatedRereading: false,
-  excessiveEditing: false,
 };
 
 function asCompleteAnswers(
   answers: Partial<DiagnosticAnswers>,
 ): DiagnosticAnswers | null {
   if (
-    answers.understandsQuestion &&
-    answers.canSubmitBadInFiveMinutes &&
-    answers.strongestEmotion &&
-    answers.taskScope &&
-    answers.gradeWorry
+    answers.internalVoice &&
+    answers.eightyPercentThought &&
+    answers.whyBestWork &&
+    answers.avoidanceDuration &&
+    answers.helpSeeking
   ) {
     return answers as DiagnosticAnswers;
   }
@@ -189,7 +170,11 @@ export default function StuckApp() {
   }, [answeredCount, questionQueue.length]);
 
   const activeStep = useMemo(
-    () => plan?.steps.find((step) => step.id === activeTimerStepId) ?? null,
+    () => {
+      if (!plan || activeTimerStepId === null) return null;
+      const stepIndex = parseInt(activeTimerStepId, 10);
+      return plan.steps[stepIndex] ?? null;
+    },
     [activeTimerStepId, plan],
   );
 
@@ -357,7 +342,7 @@ export default function StuckApp() {
       return;
     }
 
-    setTimerSecondsLeft(activeStep.minutes * 60);
+    setTimerSecondsLeft(activeStep.timeMinutes * 60);
     setTimerRunning(false);
   }
 
@@ -384,14 +369,14 @@ export default function StuckApp() {
           ? crypto.randomUUID()
           : `session-${Date.now()}`,
       userId: "local-user",
-      createdAt: now,
-      subject: context.subject.trim() || "Unknown Subject",
-      assignmentType: context.assignmentType.trim() || "Unknown Assignment",
+      timestamp: now,
       stuckType: diagnosis.primaryType,
-      emotion: completeAnswers.strongestEmotion,
-      timeStuckMinutes: context.timeStuckMinutes,
-      interventionUsed,
+      diagnosis,
+      interventionPlan: plan,
       outcome: selectedOutcome,
+      durationMinutes: context?.timeStuckMinutes || 0,
+      distortions: [],
+      safetyFlags: [],
     };
 
     const updatedHistory = [sessionRecord, ...history].slice(0, MAX_HISTORY);
@@ -432,7 +417,7 @@ export default function StuckApp() {
   const diagnosisLabel = diagnosis
     ? STUCK_TYPE_LABELS[diagnosis.primaryType]
     : null;
-  const firstAction = plan?.firstAction ?? null;
+  const firstAction = plan?.steps?.[0]?.action ?? null;
 
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50">
@@ -536,265 +521,6 @@ export default function StuckApp() {
                 >
                   {loading ? "Starting..." : "I'M STUCK"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("context")}
-                  className="rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                >
-                  Go To Context Tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setContext((previous) => ({
-                      ...previous,
-                      subject: "Chemistry",
-                      assignmentType: "Homework",
-                      timeStuckMinutes: 45,
-                      tasksOpenCount: 3,
-                      energyLevel: 3,
-                      panicLevel: 4,
-                      repeatedRereading: true,
-                      excessiveEditing: false,
-                    }))
-                  }
-                  className="rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                >
-                  Load Demo Context
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {activeTab === "context" ? (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
-                Session Context
-              </h3>
-
-              <div>
-                <label htmlFor="subject" className="text-xs text-emerald-300">
-                  Subject
-                </label>
-                <input
-                  id="subject"
-                  value={context.subject}
-                  onChange={(event) =>
-                    setContext((previous) => ({
-                      ...previous,
-                      subject: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Chemistry"
-                  className="mt-1 w-full rounded-lg border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm outline-none ring-lime-300 focus:ring"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="assignment" className="text-xs text-emerald-300">
-                  Assignment Type
-                </label>
-                <input
-                  id="assignment"
-                  value={context.assignmentType}
-                  onChange={(event) =>
-                    setContext((previous) => ({
-                      ...previous,
-                      assignmentType: event.target.value,
-                    }))
-                  }
-                  placeholder="Homework / Essay / Lab"
-                  className="mt-1 w-full rounded-lg border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm outline-none ring-lime-300 focus:ring"
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {["Homework", "Essay", "Lab", "Problem Set", "Exam Prep"].map(
-                    (preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() =>
-                          setContext((previous) => ({
-                            ...previous,
-                            assignmentType: preset,
-                          }))
-                        }
-                        className="rounded-md border border-emerald-800 px-2 py-1 text-xs hover:border-lime-500"
-                      >
-                        {preset}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Time Stuck (minutes)</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        timeStuckMinutes: Math.max(0, previous.timeStuckMinutes - 5),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-14 text-center text-sm">
-                    {context.timeStuckMinutes}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        timeStuckMinutes: Math.min(300, previous.timeStuckMinutes + 5),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Open Tasks</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        tasksOpenCount: Math.max(1, previous.tasksOpenCount - 1),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-14 text-center text-sm">
-                    {context.tasksOpenCount}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        tasksOpenCount: Math.min(20, previous.tasksOpenCount + 1),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Energy Level</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={`energy-${value}`}
-                      type="button"
-                      onClick={() =>
-                        setContext((previous) => ({
-                          ...previous,
-                          energyLevel: value as 1 | 2 | 3 | 4 | 5,
-                        }))
-                      }
-                      className={`rounded-md border px-2 py-1 text-xs ${
-                        context.energyLevel === value
-                          ? "border-lime-300 bg-lime-300/20"
-                          : "border-emerald-800 hover:border-lime-500"
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Panic Level</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={`panic-${value}`}
-                      type="button"
-                      onClick={() =>
-                        setContext((previous) => ({
-                          ...previous,
-                          panicLevel: value as 1 | 2 | 3 | 4 | 5,
-                        }))
-                      }
-                      className={`rounded-md border px-2 py-1 text-xs ${
-                        context.panicLevel === value
-                          ? "border-lime-300 bg-lime-300/20"
-                          : "border-emerald-800 hover:border-lime-500"
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setContext((previous) => ({
-                      ...previous,
-                      repeatedRereading: !previous.repeatedRereading,
-                    }))
-                  }
-                  className={`rounded-md border px-3 py-2 text-xs text-left ${
-                    context.repeatedRereading
-                      ? "border-lime-300 bg-lime-300/20"
-                      : "border-emerald-800 hover:border-lime-500"
-                  }`}
-                >
-                  Repeated rereading: {context.repeatedRereading ? "Yes" : "No"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setContext((previous) => ({
-                      ...previous,
-                      excessiveEditing: !previous.excessiveEditing,
-                    }))
-                  }
-                  className={`rounded-md border px-3 py-2 text-xs text-left ${
-                    context.excessiveEditing
-                      ? "border-lime-300 bg-lime-300/20"
-                      : "border-emerald-800 hover:border-lime-500"
-                  }`}
-                >
-                  Excessive editing: {context.excessiveEditing ? "Yes" : "No"}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={beginDiagnosis}
-                  disabled={loading}
-                  className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? "Starting..." : "Start Diagnosis"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("diagnosis")}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                >
-                  Open Diagnosis Tab
-                </button>
               </div>
             </div>
           ) : null}
@@ -833,26 +559,40 @@ export default function StuckApp() {
                   </div>
 
                   <div className="grid gap-3">
-                    {currentQuestion.options.map((option) => {
-                      const isSelected = answers[currentQuestion.id] === option.value;
+                    {/* Open-response text questions */}
+                    {["internalVoice", "eightyPercentThought", "whyBestWork", "avoidanceDuration", "helpSeeking"].includes(currentQuestion.id) ? (
+                      <textarea
+                        value={(answers[currentQuestion.id] as string) || ""}
+                        onChange={(e) =>
+                          updateAnswer(currentQuestion.id, e.target.value)
+                        }
+                        placeholder="Type your response here..."
+                        className="rounded-lg border border-emerald-800 bg-emerald-900 px-4 py-3 text-sm text-emerald-100 placeholder-emerald-500 focus:border-lime-500 focus:outline-none"
+                        rows={4}
+                      />
+                    ) : (
+                      /* Multiple choice questions */
+                      currentQuestion.options?.map((option: any) => {
+                        const isSelected = answers[currentQuestion.id] === option.value;
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            updateAnswer(currentQuestion.id, option.value)
-                          }
-                          className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
-                            isSelected
-                              ? "border-lime-300 bg-lime-300/20"
-                              : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              updateAnswer(currentQuestion.id, option.value)
+                            }
+                            className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
+                              isSelected
+                                ? "border-lime-300 bg-lime-300/20"
+                                : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-2">
@@ -967,7 +707,7 @@ export default function StuckApp() {
 
                   <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
                     <h3 className="text-lg font-semibold">{plan.headline}</h3>
-                    <p className="mt-2 text-sm text-emerald-200">{plan.whyThisWorks}</p>
+                    <p className="mt-2 text-sm text-emerald-200">{plan.whyItWorks}</p>
                   </div>
 
                   <div className="space-y-3 rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
@@ -976,12 +716,12 @@ export default function StuckApp() {
                     </h3>
 
                     {plan.steps.map((step, index) => {
-                      const completed = completedStepIds.includes(step.id);
-                      const timerActive = activeTimerStepId === step.id;
+                      const completed = completedStepIds.includes(`${index}`);
+                      const timerActive = activeTimerStepId === `${index}`;
 
                       return (
                         <div
-                          key={step.id}
+                          key={`step-${index}`}
                           className={`rounded-lg border p-3 ${
                             completed
                               ? "border-lime-500 bg-lime-900/20"
@@ -989,20 +729,20 @@ export default function StuckApp() {
                           }`}
                         >
                           <p className="text-xs text-emerald-300">
-                            Step {index + 1} - {step.minutes} min
+                            Step {index + 1} - {step.timeMinutes} min
                           </p>
-                          <p className="mt-1 text-sm">{step.instruction}</p>
+                          <p className="mt-1 text-sm">{step.action}</p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
                               type="button"
-                              onClick={() => toggleStepComplete(step.id)}
+                              onClick={() => toggleStepComplete(`${index}`)}
                               className="rounded-md border border-emerald-700 px-3 py-1.5 text-xs hover:border-emerald-500"
                             >
                               {completed ? "Undo Complete" : "Mark Complete"}
                             </button>
                             <button
                               type="button"
-                              onClick={() => startStepTimer(step.id, step.minutes)}
+                              onClick={() => startStepTimer(`${index}`, step.timeMinutes)}
                               className="rounded-md border border-lime-400 px-3 py-1.5 text-xs text-lime-100 hover:border-lime-300"
                             >
                               {timerActive ? "Restart Timer" : "Start Timer"}
@@ -1018,7 +758,7 @@ export default function StuckApp() {
                       <p className="text-sm font-semibold text-emerald-100">Timer</p>
                       {activeStep ? (
                         <span className="rounded-md border border-emerald-800 px-2 py-1 text-xs text-emerald-200">
-                          Active: {activeStep.id}
+                          Active: {activeStep.timeMinutes} min step
                         </span>
                       ) : (
                         <span className="rounded-md border border-emerald-800 px-2 py-1 text-xs text-emerald-200">
@@ -1114,15 +854,16 @@ export default function StuckApp() {
                 </h3>
                 {insights.length > 0 ? (
                   <div className="mt-3 space-y-2">
-                    {insights.map((insight) => (
+                    {insights.map((insight, index) => (
                       <div
-                        key={insight.key}
+                        key={`insight-${index}`}
                         className="rounded-lg border border-emerald-800 bg-emerald-950/60 p-3"
                       >
                         <p className="text-xs text-emerald-300">
-                          Confidence: {insight.confidence}
+                          {insight.type} (Severity: {insight.severity})
                         </p>
-                        <p className="mt-1 text-sm">{insight.message}</p>
+                        <p className="mt-1 text-sm">{insight.description}</p>
+                        <p className="mt-1 text-xs text-emerald-400">→ {insight.recommendation}</p>
                       </div>
                     ))}
                   </div>
@@ -1177,20 +918,10 @@ export default function StuckApp() {
                         key={session.id}
                         type="button"
                         onClick={() => {
-                          setContext((previous) => ({
-                            ...previous,
-                            subject: session.subject,
-                            assignmentType: session.assignmentType,
-                            timeStuckMinutes: session.timeStuckMinutes,
-                          }));
-                          setNotice(
-                            `Loaded context from ${session.subject} (${session.assignmentType}).`,
-                          );
-                          setActiveTab("context");
+                          setNotice(`Reviewing ${STUCK_TYPE_LABELS[session.stuckType]} session.`);
                         }}
                         className="w-full rounded-lg border border-emerald-800 bg-emerald-950/60 p-3 text-left hover:border-lime-500"
                       >
-                        <p className="text-xs text-emerald-300">{session.subject}</p>
                         <p className="text-sm">
                           {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
                           {OUTCOME_LABELS[session.outcome]}
@@ -1213,13 +944,6 @@ export default function StuckApp() {
                 >
                   Open Insights Tab
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("context")}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                >
-                  Open Context Tab
-                </button>
               </div>
             </div>
           ) : null}
@@ -1230,8 +954,8 @@ export default function StuckApp() {
         isOpen={chatOpen}
         onOpen={() => setChatOpen(true)}
         onClose={() => setChatOpen(false)}
-        subject={context.subject}
-        assignmentType={context.assignmentType}
+        subject={context.subject ?? ""}
+        assignmentType={context.assignmentType ?? ""}
         diagnosisLabel={diagnosisLabel}
         firstAction={firstAction}
         onOpenDiagnosisTab={() => setActiveTab("diagnosis")}

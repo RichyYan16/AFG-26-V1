@@ -1,20 +1,35 @@
 /**
- * Word2Vec/Universal Sentence Encoder-based Embedding Model
+ * Sentence-BERT-based Embedding Model
  * Computes semantic similarity between student responses and stuck type anchors
+ * Uses @xenova/transformers for efficient ONNX-based inference
  */
 
-import * as use from "@tensorflow-models/universal-sentence-encoder";
+import { env, pipeline } from "@xenova/transformers";
 import type { DiagnosticAnswers, StuckType } from "./types";
 import { EMBEDDING_WEIGHTS } from "./weights";
+
+// Disable remote model loading for privacy
+env.allowRemoteModels = false;
 
 let modelCache: any = null;
 
 /**
- * Load Universal Sentence Encoder model (cached)
+ * Load Sentence-BERT model (cached)
+ * Uses the all-MiniLM-L6-v2 model via @xenova/transformers
  */
 async function loadModel() {
   if (!modelCache) {
-    modelCache = await use.load();
+    console.log("Loading Sentence-BERT model...");
+    try {
+      modelCache = await pipeline(
+        "feature-extraction",
+        "Xenova/all-MiniLM-L6-v2"
+      );
+      console.log("✅ Sentence-BERT model loaded successfully");
+    } catch (error) {
+      console.error("❌ Failed to load Sentence-BERT model:", error);
+      throw error;
+    }
   }
   return modelCache;
 }
@@ -82,25 +97,35 @@ const STUCK_TYPE_ANCHORS: Record<StuckType, string[]> = {
 
 /**
  * Compute raw embedding vector from student answers
- * Returns the 512-dimensional vector representation [a, b, c, ...]
+ * Returns the 384-dimensional vector representation [a, b, c, ...]
  * This vector captures the semantic/emotional essence of their responses
  */
 export async function computeEmbeddingVector(
   answers: DiagnosticAnswers,
 ): Promise<number[]> {
-  const model = await loadModel();
+  try {
+    const model = await loadModel();
 
-  // Combine all answers into single text
-  const studentText = Object.values(answers)
-    .filter(Boolean)
-    .join(" ");
+    // Combine all answers into single text
+    const studentText = Object.values(answers)
+      .filter(Boolean)
+      .join(" ");
 
-  // Embed student response
-  const studentEmbedding = await model.embed([studentText]);
-  const studentVector = await studentEmbedding.array();
-  const studentVec = studentVector[0] as number[];
+    // Embed student response using Sentence-BERT
+    const result = await model(studentText, {
+      pooling: "mean",
+      normalize: true,
+    });
 
-  return studentVec;
+    // Extract embedding vector from result
+    const studentVec = Array.from(result.data) as number[];
+
+    console.log(`✅ Computed embedding vector with ${studentVec.length} dimensions`);
+    return studentVec;
+  } catch (e) {
+    console.error(`❌ Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
+  }
 }
 
 /**
@@ -111,41 +136,48 @@ export async function computeEmbeddingVector(
 export async function computeEmbeddingScores(
   answers: DiagnosticAnswers,
 ): Promise<Record<StuckType, number>> {
-  const model = await loadModel();
+  try {
+    const model = await loadModel();
 
-  // Get raw embedding vector
-  const studentVec = await computeEmbeddingVector(answers);
+    // Get raw embedding vector
+    const studentVec = await computeEmbeddingVector(answers);
 
-  const scores: Record<StuckType, number> = {
-    confusion: 0,
-    ambiguity: 0,
-    fear: 0,
-    overwhelm: 0,
-    exhaustion: 0,
-    perfection_loop: 0,
-  };
+    const scores: Record<StuckType, number> = {
+      confusion: 0,
+      ambiguity: 0,
+      fear: 0,
+      overwhelm: 0,
+      exhaustion: 0,
+      perfection_loop: 0,
+    };
 
-  // For each stuck type, compute similarity to anchor statements
-  for (const [stuckType, anchors] of Object.entries(
-    STUCK_TYPE_ANCHORS,
-  ) as [StuckType, string[]][]) {
-    const anchorEmbeddings = await model.embed(anchors);
-    const anchorVectors = await anchorEmbeddings.array();
+    // For each stuck type, compute similarity to anchor statements
+    for (const [stuckType, anchors] of Object.entries(
+      STUCK_TYPE_ANCHORS,
+    ) as [StuckType, string[]][]) {
+      let typeScore = 0;
 
-    let typeScore = 0;
+      // Average similarity across all anchors for this type
+      for (const anchor of anchors) {
+        const anchorResult = await model(anchor, {
+          pooling: "mean",
+          normalize: true,
+        });
+        const anchorVec = Array.from(anchorResult.data) as number[];
+        const similarity = cosineSimilarity(studentVec, anchorVec);
+        typeScore += similarity;
+      }
 
-    // Average similarity across all anchors for this type
-    for (let i = 0; i < anchors.length; i++) {
-      const anchorVec = anchorVectors[i] as number[];
-      const similarity = cosineSimilarity(studentVec, anchorVec);
-      typeScore += similarity;
+      scores[stuckType] = typeScore / anchors.length;
     }
 
-    scores[stuckType] = typeScore / anchors.length;
+    console.log(`✅ Computed embedding scores for all stuck types`);
+    // Normalize scores
+    return normalizeScores(scores);
+  } catch (e) {
+    console.error(`❌ Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
   }
-
-  // Normalize scores
-  return normalizeScores(scores);
 }
 
 /**
@@ -241,9 +273,11 @@ export async function getEmbeddingSimilarityBreakdown(
     .filter(Boolean)
     .join(" ");
 
-  const studentEmbedding = await model.embed([studentText]);
-  const studentVector = await studentEmbedding.array();
-  const studentVec = studentVector[0] as number[];
+  const studentResult = await model(studentText, {
+    pooling: "mean",
+    normalize: true,
+  });
+  const studentVec = Array.from(studentResult.data) as number[];
 
   const breakdown: Record<
     StuckType,
@@ -260,13 +294,14 @@ export async function getEmbeddingSimilarityBreakdown(
   for (const [stuckType, anchors] of Object.entries(
     STUCK_TYPE_ANCHORS,
   ) as [StuckType, string[]][]) {
-    const anchorEmbeddings = await model.embed(anchors);
-    const anchorVectors = await anchorEmbeddings.array();
-
     breakdown[stuckType].anchors = anchors;
 
-    for (let i = 0; i < anchors.length; i++) {
-      const anchorVec = anchorVectors[i] as number[];
+    for (const anchor of anchors) {
+      const anchorResult = await model(anchor, {
+        pooling: "mean",
+        normalize: true,
+      });
+      const anchorVec = Array.from(anchorResult.data) as number[];
       const similarity = cosineSimilarity(studentVec, anchorVec);
       breakdown[stuckType].similarities.push(similarity);
     }

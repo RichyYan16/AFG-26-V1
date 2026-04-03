@@ -47,21 +47,21 @@ export type DistortionType = (typeof DISTORTION_TYPES)[number];
 // DIAGNOSTIC QUESTIONS
 // ============================================
 export const DIAGNOSTIC_QUESTION_IDS = [
-  "understandsQuestion",
-  "canSubmitBadInFiveMinutes",
-  "strongestEmotion",
-  "taskScope",
-  "gradeWorry",
+  "internalVoice",
+  "eightyPercentThought",
+  "whyBestWork",
+  "avoidanceDuration",
+  "helpSeeking",
 ] as const;
 
 export type QuestionId = (typeof DIAGNOSTIC_QUESTION_IDS)[number];
 
 export interface DiagnosticAnswers {
-  understandsQuestion: "yes" | "partly" | "no";
-  canSubmitBadInFiveMinutes: "yes" | "maybe" | "no";
-  strongestEmotion: Emotion;
-  taskScope: "small_clear" | "large_clear" | "unclear";
-  gradeWorry: "low" | "medium" | "high";
+  internalVoice: string;
+  eightyPercentThought: string;
+  whyBestWork: string;
+  avoidanceDuration: string;
+  helpSeeking: string;
 }
 
 // ============================================
@@ -201,3 +201,23 @@ export interface StudentInsights {
   trendInsights: TrendInsight[];
   riskFlags: string[];
 }
+
+// ============================================
+// API RESPONSE TYPES
+// ============================================
+export interface IncompleteResponse {
+  status: "needs_more_answers";
+  nextQuestion: AdaptiveQuestion | null;
+  questionQueue: AdaptiveQuestion[];
+}
+
+export interface DiagnosedResponse {
+  status: "diagnosed";
+  diagnosis: DiagnosisResult;
+  plan: InterventionPlan;
+  insights: TrendInsight[];
+  profile: StudentProfile;
+}
+
+export type DiagnoseResponse = IncompleteResponse | DiagnosedResponse;
+

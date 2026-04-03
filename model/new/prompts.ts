@@ -39,12 +39,12 @@ export function generateDiagnosisPrompt(
   embeddingScores: Record<StuckType, number>,
 ): string {
   return `
-STUDENT RESPONSES:
-- Do you understand the assignment? ${answers.understandsQuestion}
-- Could you submit rough work in 5 min? ${answers.canSubmitBadInFiveMinutes}
-- Strongest emotion right now: ${answers.strongestEmotion}
-- Task scope: ${answers.taskScope}
-- How much do grades worry you? ${answers.gradeWorry}
+STUDENT RESPONSES (OPEN-RESPONSE):
+- Internal voice about this task: "${answers.internalVoice}"
+- Thought about 80% submission: "${answers.eightyPercentThought}"
+- Why doing their best: "${answers.whyBestWork}"
+- Avoidance duration: "${answers.avoidanceDuration}"
+- Feeling about asking for help: "${answers.helpSeeking}"
 
 PRELIMINARY EMBEDDING ANALYSIS (semantic similarity to stuck types):
 ${Object.entries(embeddingScores)
@@ -74,14 +74,14 @@ export function generateFollowUpPrompt(
 ): string {
   return `
 CONTEXT: This is diagnostic question #${questionNumber} of 5.
-The student has already answered the initial 5 questions.
+The student has answered their initial assessment.
 
-THEIR ANSWERS SO FAR:
-- Understanding: ${previousAnswers.understandsQuestion}
-- Can submit rough in 5 min: ${previousAnswers.canSubmitBadInFiveMinutes}
-- Strongest emotion: ${previousAnswers.strongestEmotion}
-- Task scope: ${previousAnswers.taskScope}
-- Grade worry level: ${previousAnswers.gradeWorry}
+THEIR RESPONSES:
+- Internal voice: "${previousAnswers.internalVoice}"
+- 80% submission thought: "${previousAnswers.eightyPercentThought}"
+- Why best work matters: "${previousAnswers.whyBestWork}"
+- Avoidance duration: "${previousAnswers.avoidanceDuration}"
+- Help-seeking feeling: "${previousAnswers.helpSeeking}"
 
 ${currentDiagnosis ? `LEADING DIAGNOSIS: ${currentDiagnosis}` : ""}
 

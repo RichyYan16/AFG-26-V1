@@ -44,6 +44,25 @@ export {
 } from "./wordEmbedding";
 
 // ============================================
+// LOGISTIC REGRESSION CLASSIFIER EXPORTS
+// ============================================
+export {
+  classifyWithLogisticRegression,
+  classifyBatchWithLogisticRegression,
+  getModelInfo,
+} from "./logisticRegression";
+
+// ============================================
+// QUESTIONS EXPORTS
+// ============================================
+export {
+  isDiagnosticComplete,
+  getUnansweredQuestions,
+  getAllDiagnosticQuestions,
+  getNextUnansweredQuestion,
+} from "./questions";
+
+// ============================================
 // GEMINI INTEGRATION EXPORTS
 // ============================================
 export type { DiagnosisFromGemini, InterventionFromGemini } from "./geminiIntegration";

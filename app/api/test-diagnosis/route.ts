@@ -28,13 +28,13 @@ export async function GET(request: Request) {
 
     console.log("🚀 Running Stuck Diagnosis Model Test\n");
 
-    // Test Case 1: Confusion
+    // Test Case: Open-response answers
     const testAnswers: DiagnosticAnswers = {
-      understandsQuestion: "partly",
-      canSubmitBadInFiveMinutes: "no",
-      strongestEmotion: "frustrated",
-      taskScope: "unclear",
-      gradeWorry: "high",
+      internalVoice: "You're not smart enough for this. Everyone else gets it but you never will.",
+      eightyPercentThought: "I feel guilty submitting anything less than perfect. People will judge me for not doing better.",
+      whyBestWork: "I want to prove to myself I'm capable and not disappoint my professors.",
+      avoidanceDuration: "About 2 weeks. I've been avoiding it since I got the assignment.",
+      helpSeeking: "Intimidated and embarrassed. I feel like asking for help means admitting I'm not smart enough.",
     };
 
     console.log("📝 TEST: Diagnosis with sample answers");

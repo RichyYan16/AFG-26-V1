@@ -1,19 +1,33 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { 
-  User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  sendPasswordResetEmail
-} from "firebase/auth";
+// TODO: Replace with real Firebase imports once Firebase is properly initialized
+// For now, we're using mock/null implementations
+let User: any = null;
+let signInWithEmailAndPassword: any = null;
+let createUserWithEmailAndPassword: any = null;
+let signOut: any = null;
+let onAuthStateChanged: any = null;
+let sendPasswordResetEmail: any = null;
+
+// Try to import Firebase functions if available
+try {
+  const firebase = require("firebase/auth");
+  User = firebase.User;
+  signInWithEmailAndPassword = firebase.signInWithEmailAndPassword;
+  createUserWithEmailAndPassword = firebase.createUserWithEmailAndPassword;
+  signOut = firebase.signOut;
+  onAuthStateChanged = firebase.onAuthStateChanged;
+  sendPasswordResetEmail = firebase.sendPasswordResetEmail;
+} catch (e) {
+  console.warn("Firebase auth not available - using mocks");
+}
+
 import { auth } from "@/lib/firebase";
 import { createUserProfile } from "@/services/firebaseService";
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -24,11 +38,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // If auth is not available (Firebase not initialized), set loading to false
+    if (!auth) {
+      console.warn("Firebase auth not available - using mock auth");
+      setLoading(false);
+      return;
+    }
+
+    if (!onAuthStateChanged) {
+      console.warn("onAuthStateChanged not available");
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
       setUser(user);
       setLoading(false);
     });
@@ -38,6 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      if (!auth) {
+        console.warn("Firebase auth not available - skipping sign in");
+        return;
+      }
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       throw error;
@@ -46,6 +77,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      if (!auth) {
+        console.warn("Firebase auth not available - skipping sign up");
+        return;
+      }
       console.log("Starting sign up process for:", email);
       
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -62,6 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      if (!auth) {
+        console.warn("Firebase auth not available - skipping logout");
+        return;
+      }
       await signOut(auth);
     } catch (error) {
       throw error;
@@ -70,6 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
+      if (!auth) {
+        console.warn("Firebase auth not available - skipping password reset");
+        return;
+      }
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
       throw error;

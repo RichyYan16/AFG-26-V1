@@ -68,8 +68,7 @@ export {
 export type { DiagnosisFromGemini, InterventionFromGemini } from "./geminiIntegration";
 export {
   refineDiagnosisWithGemini,
-  generateInternalFollowUpQuestions,
-  generateNextDiagnosticQuestion,
+  generateFollowUpQuestions,
   generateInterventionPlan,
 } from "./geminiIntegration";
 

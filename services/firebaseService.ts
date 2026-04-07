@@ -7,16 +7,14 @@ import {
   query, 
   orderBy, 
   limit,
-  deleteDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove
+  deleteDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { SessionRecord } from "@/model/new/types";
 
 const USERS_COLLECTION = "users";
 const SESSIONS_COLLECTION = "sessions";
+type UserProfileData = Record<string, unknown>;
 
 export async function createUserProfile(userId: string, email: string): Promise<void> {
   try {
@@ -121,17 +119,17 @@ export async function clearUserSessions(userId: string): Promise<void> {
   }
 }
 
-export async function updateUserProfile(userId: string, profileData: any): Promise<void> {
+export async function updateUserProfile(userId: string, profileData: UserProfileData): Promise<void> {
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    await updateDoc(userDocRef, profileData, { merge: true });
+    await setDoc(userDocRef, profileData, { merge: true });
   } catch (error) {
     console.error("Error updating user profile:", error);
     throw error;
   }
 }
 
-export async function getUserProfile(userId: string): Promise<any> {
+export async function getUserProfile(userId: string): Promise<UserProfileData | null> {
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     const docSnapshot = await getDoc(userDocRef);

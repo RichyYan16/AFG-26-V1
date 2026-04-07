@@ -11,7 +11,7 @@ import {
 import { classifyWithLogisticRegression } from "./logisticRegression";
 import {
   refineDiagnosisWithGemini,
-  generateInternalFollowUpQuestions,
+  generateFollowUpQuestions,
 } from "./geminiIntegration";
 import { blendScores } from "./weights";
 import type {
@@ -73,11 +73,12 @@ export async function diagnoseWithHybridModel(
     console.log("❓ Step 3: Generating internal follow-up questions...");
     let internalFollowUpQuestions: string[] = [];
     try {
-      internalFollowUpQuestions = await generateInternalFollowUpQuestions(
+      const internalFollowUps = await generateFollowUpQuestions(
         answers,
         embeddingScores,
         maxDiagnosis,
       );
+      internalFollowUpQuestions = internalFollowUps.map((item) => item.prompt);
       console.log(`✅ Generated ${internalFollowUpQuestions.length} follow-up questions`);
       internalFollowUpQuestions.forEach((q, i) => {
         console.log(`   ${i + 1}. ${q.substring(0, 70)}...`);

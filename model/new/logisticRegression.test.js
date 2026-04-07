@@ -1,4 +1,5 @@
 "use strict";
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Test script for Logistic Regression classifier
  * Validates that embeddings are correctly classified to stuck types

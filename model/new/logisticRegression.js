@@ -1,4 +1,5 @@
 "use strict";
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Logistic Regression Model for Stuck Type Classification
  * Takes embedding vectors (512-dim from USE) and outputs categorical stuck type

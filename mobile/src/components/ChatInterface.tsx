@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -69,6 +69,7 @@ const MessageItem = React.memo(({ item }: { item: Message }) => {
         </View>
     );
 });
+MessageItem.displayName = "MessageItem";
 
 const palette = {
     background: '#F5FBF4',

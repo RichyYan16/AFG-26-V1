@@ -59,7 +59,7 @@ async function testLogisticRegression() {
     );
   });
 
-  console.log("\n✅ Logistic Regression Classifier Test Complete");
+  console.log("\nLogistic Regression Classifier Test Complete");
 }
 
 // Run test if this file is executed directly

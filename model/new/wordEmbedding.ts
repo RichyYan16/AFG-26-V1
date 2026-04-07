@@ -8,10 +8,31 @@ import { env, pipeline } from "@xenova/transformers";
 import type { DiagnosticAnswers, StuckType } from "./types";
 import { EMBEDDING_WEIGHTS } from "./weights";
 
-// Disable remote model loading for privacy
-env.allowRemoteModels = false;
+const SBERT_MODEL_ID = process.env.SBERT_MODEL_ID || "Xenova/all-MiniLM-L6-v2";
+const SBERT_ALLOW_REMOTE_MODELS =
+  process.env.SBERT_ALLOW_REMOTE_MODELS !== "false";
+const SBERT_LOCAL_MODEL_PATH = process.env.SBERT_LOCAL_MODEL_PATH;
 
-let modelCache: any = null;
+// Sentence-BERT loading configuration:
+// - local models always allowed
+// - remote downloads enabled by default unless explicitly disabled
+env.allowLocalModels = true;
+env.allowRemoteModels = SBERT_ALLOW_REMOTE_MODELS;
+if (SBERT_LOCAL_MODEL_PATH) {
+  env.localModelPath = SBERT_LOCAL_MODEL_PATH;
+}
+
+interface EmbeddingResult {
+  data: ArrayLike<number>;
+}
+
+type EmbeddingPipeline = (
+  input: string,
+  options: { pooling: "mean"; normalize: boolean },
+) => Promise<EmbeddingResult>;
+
+let modelCache: EmbeddingPipeline | null = null;
+let anchorEmbeddingCache: Record<StuckType, number[][]> | null = null;
 
 /**
  * Load Sentence-BERT model (cached)
@@ -19,19 +40,52 @@ let modelCache: any = null;
  */
 async function loadModel() {
   if (!modelCache) {
-    console.log("Loading Sentence-BERT model...");
+    console.log(`Loading Sentence-BERT model: ${SBERT_MODEL_ID}...`);
     try {
-      modelCache = await pipeline(
-        "feature-extraction",
-        "Xenova/all-MiniLM-L6-v2"
-      );
+      const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
+      modelCache = loadedModel as unknown as EmbeddingPipeline;
       console.log("✅ Sentence-BERT model loaded successfully");
     } catch (error) {
-      console.error("❌ Failed to load Sentence-BERT model:", error);
+      console.error(
+        `❌ Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
+        error,
+      );
       throw error;
     }
   }
   return modelCache;
+}
+
+async function loadAnchorEmbeddings(
+  model: EmbeddingPipeline,
+): Promise<Record<StuckType, number[][]>> {
+  if (anchorEmbeddingCache) {
+    return anchorEmbeddingCache;
+  }
+
+  const cache: Record<StuckType, number[][]> = {
+    confusion: [],
+    ambiguity: [],
+    fear: [],
+    overwhelm: [],
+    exhaustion: [],
+    perfection_loop: [],
+  };
+
+  for (const [stuckType, anchors] of Object.entries(
+    STUCK_TYPE_ANCHORS,
+  ) as [StuckType, string[]][]) {
+    for (const anchor of anchors) {
+      const anchorResult = await model(anchor, {
+        pooling: "mean",
+        normalize: true,
+      });
+      cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+    }
+  }
+
+  anchorEmbeddingCache = cache;
+  return anchorEmbeddingCache;
 }
 
 /**
@@ -138,6 +192,7 @@ export async function computeEmbeddingScores(
 ): Promise<Record<StuckType, number>> {
   try {
     const model = await loadModel();
+    const anchorEmbeddings = await loadAnchorEmbeddings(model);
 
     // Get raw embedding vector
     const studentVec = await computeEmbeddingVector(answers);
@@ -152,23 +207,19 @@ export async function computeEmbeddingScores(
     };
 
     // For each stuck type, compute similarity to anchor statements
-    for (const [stuckType, anchors] of Object.entries(
+    for (const [stuckType] of Object.entries(
       STUCK_TYPE_ANCHORS,
     ) as [StuckType, string[]][]) {
       let typeScore = 0;
+      const anchorVectors = anchorEmbeddings[stuckType];
 
       // Average similarity across all anchors for this type
-      for (const anchor of anchors) {
-        const anchorResult = await model(anchor, {
-          pooling: "mean",
-          normalize: true,
-        });
-        const anchorVec = Array.from(anchorResult.data) as number[];
+      for (const anchorVec of anchorVectors) {
         const similarity = cosineSimilarity(studentVec, anchorVec);
         typeScore += similarity;
       }
 
-      scores[stuckType] = typeScore / anchors.length;
+      scores[stuckType] = typeScore / anchorVectors.length;
     }
 
     console.log(`✅ Computed embedding scores for all stuck types`);
@@ -269,6 +320,7 @@ export async function getEmbeddingSimilarityBreakdown(
   answers: DiagnosticAnswers,
 ): Promise<Record<StuckType, { anchors: string[]; similarities: number[] }>> {
   const model = await loadModel();
+  const anchorEmbeddings = await loadAnchorEmbeddings(model);
   const studentText = Object.values(answers)
     .filter(Boolean)
     .join(" ");
@@ -295,13 +347,8 @@ export async function getEmbeddingSimilarityBreakdown(
     STUCK_TYPE_ANCHORS,
   ) as [StuckType, string[]][]) {
     breakdown[stuckType].anchors = anchors;
-
-    for (const anchor of anchors) {
-      const anchorResult = await model(anchor, {
-        pooling: "mean",
-        normalize: true,
-      });
-      const anchorVec = Array.from(anchorResult.data) as number[];
+    const anchorVectors = anchorEmbeddings[stuckType];
+    for (const anchorVec of anchorVectors) {
       const similarity = cosineSimilarity(studentVec, anchorVec);
       breakdown[stuckType].similarities.push(similarity);
     }

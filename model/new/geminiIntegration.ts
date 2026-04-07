@@ -40,6 +40,19 @@ export interface InterventionFromGemini {
   reflectionPrompt: string;
 }
 
+interface ParsedInterventionStep {
+  timeMinutes?: number;
+  action?: string;
+  tip?: string;
+}
+
+interface ParsedInterventionPayload {
+  headline?: string;
+  whyItWorks?: string;
+  steps?: ParsedInterventionStep[];
+  reflectionPrompt?: string;
+}
+
 /**
  * Call Gemini to refine diagnosis based on embedding scores + answers
  * Adds context and nuance to the embedding-based scores
@@ -102,16 +115,15 @@ export async function refineDiagnosisWithGemini(
 }
 
 /**
- * Generate all 5 internal follow-up questions for Gemini analysis
- * These questions help Gemini refine its diagnosis
- * Returns array of 5 questions (internal use only)
+ * Generate follow-up questions to be displayed to the user
+ * Returns array of 5 questions with options for user interaction
  */
-export async function generateInternalFollowUpQuestions(
+export async function generateFollowUpQuestions(
   answers: DiagnosticAnswers,
   embeddingScores: Record<StuckType, number>,
   maxDiagnosis: StuckType,
-): Promise<string[]> {
-  const questions: string[] = [];
+): Promise<Array<{ id: string; prompt: string; options: Array<{ value: string; label: string }> }>> {
+  const questions = [];
 
   for (let i = 1; i <= 5; i++) {
     try {
@@ -131,58 +143,37 @@ export async function generateInternalFollowUpQuestions(
         systemInstruction: SYSTEM_PROMPTS.followUpQuestion,
       });
 
-      const question =
+      const questionText =
         result.response.candidates?.[0]?.content.parts[0]?.text ||
         `Tell me more about your experience.`;
 
-      questions.push(question);
+      // Parse response to extract question and options
+      questions.push({
+        id: `follow_up_${i}`,
+        prompt: questionText,
+        options: [
+          { value: "strongly_agree", label: "Strongly Agree" },
+          { value: "agree", label: "Agree" },
+          { value: "neutral", label: "Neutral" },
+          { value: "disagree", label: "Disagree" },
+        ],
+      });
     } catch (error) {
       console.error(`Error generating follow-up question ${i}:`, error);
-      questions.push(`Can you provide more context?`);
+      questions.push({
+        id: `follow_up_${i}`,
+        prompt: `Can you provide more context about your situation?`,
+        options: [
+          { value: "strongly_agree", label: "Strongly Agree" },
+          { value: "agree", label: "Agree" },
+          { value: "neutral", label: "Neutral" },
+          { value: "disagree", label: "Disagree" },
+        ],
+      });
     }
   }
 
   return questions;
-}
-
-/**
- * Generate next diagnostic follow-up question
- * Called up to 5 times to gather more context
- */
-export async function generateNextDiagnosticQuestion(
-  previousAnswers: DiagnosticAnswers,
-  questionNumber: number,
-  currentDiagnosis?: StuckType,
-): Promise<string> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: INTERVENTION_WEIGHTS.geminiModel,
-    });
-
-    const prompt = generateFollowUpPrompt(
-      previousAnswers,
-      questionNumber,
-      currentDiagnosis,
-    );
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      systemInstruction: SYSTEM_PROMPTS.followUpQuestion,
-    });
-
-    return (
-      result.response.candidates?.[0]?.content.parts[0]?.text ||
-      `Tell me more about how you're feeling about this assignment.`
-    );
-  } catch (error) {
-    console.error("Error generating follow-up question:", error);
-    return `Can you tell me a bit more about what's making this stuck?`;
-  }
 }
 
 /**
@@ -218,12 +209,13 @@ export async function generateInterventionPlan(
 
     // Parse JSON response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch
-      ? JSON.parse(jsonMatch[0])
+    const parsed: ParsedInterventionPayload = jsonMatch
+      ? (JSON.parse(jsonMatch[0]) as ParsedInterventionPayload)
       : getFallbackIntervention(stuckType);
 
-    const estimatedTotal = parsed.steps.reduce(
-      (sum: number, step: any) => sum + (step.timeMinutes || 5),
+    const steps = parsed.steps || [];
+    const estimatedTotal = steps.reduce(
+      (sum: number, step) => sum + (step.timeMinutes || 5),
       0,
     );
 
@@ -231,7 +223,7 @@ export async function generateInterventionPlan(
       stuckType,
       headline: parsed.headline || "Take a small step",
       whyItWorks: parsed.whyItWorks || "Every small action builds momentum.",
-      steps: (parsed.steps || []).map((step: any) => ({
+      steps: steps.map((step) => ({
         timeMinutes: step.timeMinutes || 5,
         action: step.action || "Continue with next step",
         tip: step.tip || undefined,

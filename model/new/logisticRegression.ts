@@ -1,10 +1,11 @@
 /**
  * Logistic Regression Model for Stuck Type Classification
- * Takes embedding vectors (512-dim from USE) and outputs categorical stuck type
+ * Takes embedding vectors and outputs categorical stuck type
  */
 
 import * as tf from "@tensorflow/tfjs";
 import type { StuckType } from "./types";
+import { EMBEDDING_MODEL_CONFIG } from "./weights";
 
 // Stuck types in order (for one-hot encoding)
 const STUCK_TYPES: StuckType[] = [
@@ -25,7 +26,14 @@ const STUCK_TYPES: StuckType[] = [
 let MODEL_WEIGHTS: {
   weights: tf.Tensor<tf.Rank.R2>;
   biases: tf.Tensor<tf.Rank.R1>;
+  inputDim: number;
 } | null = null;
+
+interface LogisticWeightsFile {
+  weights: number[][];
+  biases: number[];
+  inputDim?: number;
+}
 
 /**
  * Initialize model weights from JSON file
@@ -35,13 +43,16 @@ async function initializeModelWeights() {
 
   try {
     // Load weights from JSON file
-    let data: any;
+    let data: LogisticWeightsFile;
     
-    // Check if running in Node.js by checking for require/process/global
-    const isNode = typeof globalThis !== "undefined" && 
-                   typeof (globalThis as any).process !== "undefined" &&
-                   (globalThis as any).process.versions &&
-                   (globalThis as any).process.versions.node;
+    // Check if running in Node.js
+    const processInfo =
+      typeof globalThis !== "undefined" &&
+      "process" in globalThis &&
+      typeof globalThis.process === "object"
+        ? (globalThis.process as { versions?: { node?: string } })
+        : null;
+    const isNode = Boolean(processInfo?.versions?.node);
     
     if (isNode) {
       // Node.js: use file system
@@ -49,37 +60,57 @@ async function initializeModelWeights() {
       const path = await import("path");
       const weightsPath = path.join(process.cwd(), "public", "logisticRegressionWeights.json");
       const fileContent = await fs.readFile(weightsPath, "utf-8");
-      data = JSON.parse(fileContent);
+      data = JSON.parse(fileContent) as LogisticWeightsFile;
     } else {
       // Browser: use fetch
       const response = await fetch("/logisticRegressionWeights.json");
       if (!response.ok) {
         throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
       }
-      data = await response.json();
+      data = (await response.json()) as LogisticWeightsFile;
     }
 
     // Create tensors from loaded data
-    // Reshape weights from [6, 512] to [512, 6] (row-major to column-major)
+    // Reshape weights from [6, inputDim] to [inputDim, 6] (row-major to column-major)
     const weightsArray = data.weights;
     const flatWeights = weightsArray.flat(); // Flatten to 1D
+    const inputDim = data.inputDim || weightsArray[0]?.length || EMBEDDING_MODEL_CONFIG.dimension;
     
     MODEL_WEIGHTS = {
-      weights: tf.tensor2d(flatWeights, [512, 6]),
+      weights: tf.tensor2d(flatWeights, [inputDim, 6]),
       biases: tf.tensor1d(data.biases),
+      inputDim,
     };
-    console.log("✅ Logistic regression weights loaded successfully");
-    console.log(`   Weights shape: [512, 6]`);
+    console.log("Logistic regression weights loaded successfully");
+    console.log(`   Weights shape: [${inputDim}, 6]`);
     console.log(`   Biases shape: [6]\n`);
   } catch (error) {
-    console.error(`❌ Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
     console.error(`   Initializing with random weights as fallback\n`);
+    const inputDim = EMBEDDING_MODEL_CONFIG.dimension;
     // Fallback: Initialize with small random weights
     MODEL_WEIGHTS = {
-      weights: tf.randomUniform([512, 6], -0.1, 0.1),
+      weights: tf.randomUniform([inputDim, 6], -0.1, 0.1),
       biases: tf.zeros([6]),
+      inputDim,
     };
   }
+}
+
+function resizeEmbeddingVector(
+  embeddingVector: number[],
+  targetDim: number,
+): number[] {
+  if (embeddingVector.length === targetDim) {
+    return embeddingVector;
+  }
+  if (embeddingVector.length > targetDim) {
+    return embeddingVector.slice(0, targetDim);
+  }
+  return [
+    ...embeddingVector,
+    ...new Array(targetDim - embeddingVector.length).fill(0),
+  ];
 }
 
 /**
@@ -100,13 +131,17 @@ export async function classifyWithLogisticRegression(
     throw new Error("Failed to initialize model weights");
   }
 
-  // Convert embedding to tensor
-  const embedding = tf.tensor2d([embeddingVector]); // [1, 512]
+  // Convert embedding to tensor and align dimensions with model weights
+  const resizedEmbedding = resizeEmbeddingVector(
+    embeddingVector,
+    MODEL_WEIGHTS.inputDim,
+  );
+  const embedding = tf.tensor2d([resizedEmbedding], [1, MODEL_WEIGHTS.inputDim]);
 
   // Linear transformation: z = X * W + b
   const logits = tf.tidy(() => {
     const z = embedding
-      .matMul(MODEL_WEIGHTS!.weights) // [1, 512] * [512, 6] = [1, 6]
+      .matMul(MODEL_WEIGHTS!.weights)
       .add(MODEL_WEIGHTS!.biases); // Add biases [6]
 
     // Apply softmax to get probabilities
@@ -162,11 +197,17 @@ export async function classifyBatchWithLogisticRegression(
     throw new Error("Failed to initialize model weights");
   }
 
-  const embeddings = tf.tensor2d(embeddingVectors); // [n, 512]
+  const resizedEmbeddings = embeddingVectors.map((vector) =>
+    resizeEmbeddingVector(vector, MODEL_WEIGHTS!.inputDim),
+  );
+  const embeddings = tf.tensor2d(resizedEmbeddings, [
+    resizedEmbeddings.length,
+    MODEL_WEIGHTS.inputDim,
+  ]);
 
   const logits = tf.tidy(() => {
     const z = embeddings
-      .matMul(MODEL_WEIGHTS!.weights) // [n, 512] * [512, 6] = [n, 6]
+      .matMul(MODEL_WEIGHTS!.weights)
       .add(MODEL_WEIGHTS!.biases); // Add biases [6]
 
     return tf.softmax(z, 1);
@@ -211,7 +252,7 @@ export async function classifyBatchWithLogisticRegression(
  */
 export function getModelInfo() {
   return {
-    inputDim: 512,
+    inputDim: MODEL_WEIGHTS?.inputDim || EMBEDDING_MODEL_CONFIG.dimension,
     outputDim: 6,
     numClasses: STUCK_TYPES.length,
     classes: STUCK_TYPES,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Generate proper logistic regression weights
  * Creates [6, 512] weight matrix and [6] bias vector

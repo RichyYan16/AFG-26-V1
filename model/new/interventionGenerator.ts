@@ -15,6 +15,19 @@ import { INTERVENTION_WEIGHTS } from "./weights";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+interface AlternativeStep {
+  timeMinutes?: number;
+  action?: string;
+  tip?: string;
+}
+
+interface AlternativePlanPayload {
+  headline?: string;
+  whyItWorks?: string;
+  steps?: AlternativeStep[];
+  reflectionPrompt?: string;
+}
+
 /**
  * Build a personalized intervention plan for a student
  * Combines Gemini generation with student history context
@@ -81,21 +94,22 @@ export async function buildMultipleInterventionPlans(
     // Try to parse alternatives
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]) as AlternativePlanPayload[];
       for (const alt of parsed.slice(0, 2)) {
+        const steps = alt.steps || [];
         // Max 2 alternatives
         plans.push({
           stuckType,
           headline: alt.headline || "Alternative approach",
           whyItWorks: alt.whyItWorks || "Different strategy",
-          steps: (alt.steps || []).map((s: any) => ({
+          steps: steps.map((s) => ({
             timeMinutes: s.timeMinutes || 5,
             action: s.action || "Continue",
             tip: s.tip,
           })),
           reflectionPrompt: alt.reflectionPrompt || "How are you feeling?",
           estimatedTotalMinutes:
-            (alt.steps || []).reduce((sum: number, s: any) => sum + s.timeMinutes, 0) || 15,
+            steps.reduce((sum: number, s) => sum + (s.timeMinutes || 0), 0) || 15,
         });
       }
     }

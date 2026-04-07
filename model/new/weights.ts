@@ -125,7 +125,7 @@ export const INTERVENTION_WEIGHTS = {
     exhaustion: 25,
     perfection_loop: 8,
   },
-  geminiModel: "gemini-1.5-flash",
+  geminiModel: "gemini-2.5-flash-lite",
   temperature: 0.7,
 } as const;
 
@@ -152,9 +152,9 @@ export const QUESTION_WEIGHTS = {
 // MODEL SELECTION
 // ============================================
 export const EMBEDDING_MODEL_CONFIG = {
-  model: "universal-sentence-encoder",
-  dimension: 512,
-  modelUrl: "https://tfhub.dev/google/universal-sentence-encoder/4",
+  model: "sentence-bert",
+  dimension: 384,
+  modelUrl: "Xenova/all-MiniLM-L6-v2",
   cacheEmbeddings: true,
 } as const;
 

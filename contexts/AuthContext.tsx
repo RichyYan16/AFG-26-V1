@@ -1,16 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { 
-  User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  sendPasswordResetEmail
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { createUserProfile } from "@/services/firebaseService";
+import { createContext, useContext, useState } from "react";
+
+interface User {
+  uid: string;
+  email: string | null;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -25,55 +20,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+  const [loading, setLoading] = useState(false);
 
   const signIn = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      throw error;
-    }
+    console.log("Mock sign in:", email);
+    setUser({ uid: "mock-uid", email });
   };
 
   const signUp = async (email: string, password: string) => {
-    try {
-      console.log("Starting sign up process for:", email);
-      
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log("Firebase auth user created:", userCredential.user.uid);
-      
-      // Create user profile in Firestore
-      await createUserProfile(userCredential.user.uid, email);
-      console.log("Sign up process completed successfully");
-    } catch (error) {
-      console.error("Sign up error:", error);
-      throw error;
-    }
+    console.log("Mock sign up:", email);
+    setUser({ uid: "mock-uid", email });
   };
 
   const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      throw error;
-    }
+    console.log("Mock logout");
+    setUser(null);
   };
 
   const resetPassword = async (email: string) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      throw error;
-    }
+    console.log("Mock password reset:", email);
   };
 
   const value = {
@@ -85,11 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetPassword,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

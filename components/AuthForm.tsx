@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Eye, EyeOff, Mail, Lock, User, X } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, X } from "lucide-react";
 
 interface AuthFormProps {
   onClose?: () => void;
@@ -40,8 +40,8 @@ export default function AuthForm({ onClose, initialMode = 'signin' }: AuthFormPr
         await signIn(email, password);
       }
       onClose?.();
-    } catch (error: any) {
-      setError(error.message || "An error occurred");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -57,8 +57,8 @@ export default function AuthForm({ onClose, initialMode = 'signin' }: AuthFormPr
       await resetPassword(email);
       setError("");
       alert("Password reset email sent! Check your inbox.");
-    } catch (error: any) {
-      setError(error.message || "Failed to send reset email");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to send reset email");
     }
   };
 
@@ -165,7 +165,7 @@ export default function AuthForm({ onClose, initialMode = 'signin' }: AuthFormPr
           </>
         ) : (
           <>
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <button
               type="button"
               onClick={() => {

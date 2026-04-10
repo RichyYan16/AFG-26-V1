@@ -7,16 +7,14 @@ import {
   query, 
   orderBy, 
   limit,
-  deleteDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove
+  deleteDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { SessionRecord } from "@/model";
+import type { SessionRecord } from "@/model/new/types";
 
 const USERS_COLLECTION = "users";
 const SESSIONS_COLLECTION = "sessions";
+type UserProfileData = Record<string, unknown>;
 
 export async function createUserProfile(userId: string, email: string): Promise<void> {
   try {
@@ -49,7 +47,7 @@ export async function saveUserSession(userId: string, session: SessionRecord): P
     
     await setDoc(sessionDocRef, {
       ...session,
-      createdAt: new Date(session.createdAt).toISOString(),
+      timestamp: new Date(session.timestamp).toISOString(),
     });
   } catch (error) {
     console.error("Error saving session:", error);
@@ -63,7 +61,7 @@ export async function getUserSessions(userId: string, maxSessions: number = 300)
     const sessionsCollectionRef = collection(userDocRef, SESSIONS_COLLECTION);
     const q = query(
       sessionsCollectionRef,
-      orderBy("createdAt", "desc"),
+      orderBy("timestamp", "desc"),
       limit(maxSessions)
     );
     
@@ -75,15 +73,15 @@ export async function getUserSessions(userId: string, maxSessions: number = 300)
       sessions.push({
         id: doc.id,
         userId: data.userId || userId,
-        createdAt: data.createdAt,
-        subject: data.subject,
-        assignmentType: data.assignmentType,
+        timestamp: data.timestamp,
         stuckType: data.stuckType,
-        emotion: data.emotion,
-        timeStuckMinutes: data.timeStuckMinutes,
-        interventionUsed: data.interventionUsed,
+        diagnosis: data.diagnosis,
+        interventionPlan: data.interventionPlan,
         outcome: data.outcome,
-      });
+        durationMinutes: data.durationMinutes,
+        distortions: data.distortions || [],
+        safetyFlags: data.safetyFlags || [],
+      } as SessionRecord);
     });
     
     return sessions;
@@ -121,17 +119,17 @@ export async function clearUserSessions(userId: string): Promise<void> {
   }
 }
 
-export async function updateUserProfile(userId: string, profileData: any): Promise<void> {
+export async function updateUserProfile(userId: string, profileData: UserProfileData): Promise<void> {
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    await updateDoc(userDocRef, profileData, { merge: true });
+    await setDoc(userDocRef, profileData, { merge: true });
   } catch (error) {
     console.error("Error updating user profile:", error);
     throw error;
   }
 }
 
-export async function getUserProfile(userId: string): Promise<any> {
+export async function getUserProfile(userId: string): Promise<UserProfileData | null> {
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     const docSnapshot = await getDoc(userDocRef);

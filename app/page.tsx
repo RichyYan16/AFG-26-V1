@@ -2,18 +2,16 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import SideChatbot from "@/app/components/SideChatbot";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AuthForm from "@/components/AuthForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, User } from "lucide-react";
-import { getUserSessions, saveUserSession, clearUserSessions } from "@/services/firebaseService";
 import { sendMessageToAPI, type ChatMessage } from "@/app/services/api";
 import type {
   AdaptiveQuestion,
   DiagnoseResponse,
   DiagnosticAnswers,
-  DiagnosticContext,
+  QuestionOption,
   DiagnosisResult,
   InterventionPlan,
   SessionOutcome,
@@ -21,12 +19,11 @@ import type {
   StuckType,
   StudentProfile,
   TrendInsight,
-} from "@/model";
+} from "@/model/new/types";
 
 type AppTab =
   | "home"
   | "introduction"
-  | "context"
   | "questionnaire"
   | "result"
   | "intervention"
@@ -37,11 +34,11 @@ const STORAGE_KEY = "stuck_sessions_v1";
 const MAX_HISTORY = 300;
 
 const QUESTION_TITLES: Record<AdaptiveQuestion["id"], string> = {
-  understandsQuestion: "Understanding",
-  canSubmitBadInFiveMinutes: "Rough Submission",
-  strongestEmotion: "Emotion",
-  taskScope: "Task Scope",
-  gradeWorry: "Grade Worry",
+  internalVoice: "Internal Voice",
+  eightyPercentThought: "80% Thought",
+  whyBestWork: "Why Best Work",
+  avoidanceDuration: "Avoidance Duration",
+  helpSeeking: "Asking for Help",
 };
 
 const STUCK_TYPE_LABELS: Record<StuckType, string> = {
@@ -62,7 +59,6 @@ const OUTCOME_LABELS: Record<SessionOutcome, string> = {
 const TAB_LABELS: Record<AppTab, string> = {
   home: "Home",
   introduction: "Introduction",
-  context: "Context",
   questionnaire: "Questionnaire",
   result: "Result",
   intervention: "Plan",
@@ -70,38 +66,15 @@ const TAB_LABELS: Record<AppTab, string> = {
   history: "History",
 };
 
-const DEFAULT_CONTEXT: Required<
-  Pick<
-    DiagnosticContext,
-    | "subject"
-    | "assignmentType"
-    | "timeStuckMinutes"
-    | "tasksOpenCount"
-    | "energyLevel"
-    | "panicLevel"
-    | "repeatedRereading"
-    | "excessiveEditing"
-  >
-> = {
-  subject: "",
-  assignmentType: "Homework",
-  timeStuckMinutes: 30,
-  tasksOpenCount: 1,
-  energyLevel: 3,
-  panicLevel: 3,
-  repeatedRereading: false,
-  excessiveEditing: false,
-};
-
 function asCompleteAnswers(
   answers: Partial<DiagnosticAnswers>,
 ): DiagnosticAnswers | null {
   if (
-    answers.understandsQuestion &&
-    answers.canSubmitBadInFiveMinutes &&
-    answers.strongestEmotion &&
-    answers.taskScope &&
-    answers.gradeWorry
+    answers.internalVoice &&
+    answers.eightyPercentThought &&
+    answers.whyBestWork &&
+    answers.avoidanceDuration &&
+    answers.helpSeeking
   ) {
     return answers as DiagnosticAnswers;
   }
@@ -124,7 +97,9 @@ async function loadUserHistory(userId: string): Promise<SessionRecord[]> {
   }
 
   try {
-    return await getUserSessions(userId, MAX_HISTORY);
+    // Load from local storage instead of Firebase
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
   } catch (error) {
     console.error("Error loading user history:", error);
     return [];
@@ -133,13 +108,12 @@ async function loadUserHistory(userId: string): Promise<SessionRecord[]> {
 
 async function requestDiagnosis(
   answers: Partial<DiagnosticAnswers>,
-  context: DiagnosticContext,
   history: SessionRecord[],
 ): Promise<DiagnoseResponse> {
   const response = await fetch("/api/stuck/diagnose", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ answers, context, history }),
+    body: JSON.stringify({ answers, history }),
   });
 
   if (!response.ok) {
@@ -153,9 +127,9 @@ export default function StuckApp() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [answers, setAnswers] = useState<Partial<DiagnosticAnswers>>({});
+  const [openResponses, setOpenResponses] = useState<Record<string, string>>({});
   const [questionQueue, setQuestionQueue] = useState<AdaptiveQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [context, setContext] = useState(DEFAULT_CONTEXT);
   const [history, setHistory] = useState<SessionRecord[]>([]);
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
   const [plan, setPlan] = useState<InterventionPlan | null>(null);
@@ -177,7 +151,6 @@ export default function StuckApp() {
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [historyHydrated, setHistoryHydrated] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [geminiQuestions, setGeminiQuestions] = useState<AdaptiveQuestion[]>([]);
@@ -200,7 +173,11 @@ export default function StuckApp() {
   }, [answeredCount, questionQueue.length]);
 
   const activeStep = useMemo(
-    () => plan?.steps.find((step) => step.id === activeTimerStepId) ?? null,
+    () => {
+      if (!plan || activeTimerStepId === null) return null;
+      const stepIndex = parseInt(activeTimerStepId, 10);
+      return plan.steps[stepIndex] ?? null;
+    },
     [activeTimerStepId, plan],
   );
 
@@ -266,6 +243,7 @@ export default function StuckApp() {
     setNotice("");
     setLoading(true);
     setAnswers({});
+    setOpenResponses({});
     setQuestionQueue([]);
     setCurrentQuestionIndex(0);
     setGeminiQuestions([]);
@@ -284,7 +262,7 @@ export default function StuckApp() {
     setLoading(true);
     setShowIntroduction(false); // Mark introduction as completed
     try {
-      const response = await requestDiagnosis({}, context, history);
+      const response = await requestDiagnosis({}, history);
       if (response.status === "needs_more_answers") {
         setQuestionQueue(response.questionQueue);
         setCurrentQuestionIndex(0);
@@ -306,21 +284,63 @@ export default function StuckApp() {
     setAnswers((previous) => ({ ...previous, [questionId]: value }));
   }
 
+  function updateOpenResponse(questionId: string, value: string): void {
+    setOpenResponses((previous) => ({ ...previous, [questionId]: value }));
+  }
+
+  function getLatestDiagnosticAnswers(
+    fallback?: Partial<DiagnosticAnswers>,
+  ): Partial<DiagnosticAnswers> {
+    return {
+      internalVoice: (
+        fallback?.internalVoice ??
+        openResponses.internalVoice ??
+        answers.internalVoice ??
+        ""
+      ).trim(),
+      eightyPercentThought: (
+        fallback?.eightyPercentThought ??
+        openResponses.eightyPercentThought ??
+        answers.eightyPercentThought ??
+        ""
+      ).trim(),
+      whyBestWork: (
+        fallback?.whyBestWork ??
+        openResponses.whyBestWork ??
+        answers.whyBestWork ??
+        ""
+      ).trim(),
+      avoidanceDuration: (
+        fallback?.avoidanceDuration ??
+        openResponses.avoidanceDuration ??
+        answers.avoidanceDuration ??
+        ""
+      ).trim(),
+      helpSeeking: (
+        fallback?.helpSeeking ??
+        openResponses.helpSeeking ??
+        answers.helpSeeking ??
+        ""
+      ).trim(),
+    };
+  }
+
   // Custom Word Embedding Algorithm
   function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Record<string, number> {
     const embeddings: Record<string, number> = {};
     
     // Simple word embedding based on response patterns
-    if (answers.understandsQuestion === "no") embeddings.confusion = 0.8;
-    if (answers.understandsQuestion === "partly") embeddings.ambiguity = 0.6;
-    if (answers.canSubmitBadInFiveMinutes === "no") embeddings.perfection_loop = 0.7;
-    if (answers.canSubmitBadInFiveMinutes === "maybe") embeddings.fear = 0.5;
-    if (answers.strongestEmotion === "scared") embeddings.fear = 0.9;
-    if (answers.strongestEmotion === "overwhelmed") embeddings.overwhelm = 0.8;
-    if (answers.strongestEmotion === "numb") embeddings.exhaustion = 0.7;
-    if (answers.taskScope === "unclear") embeddings.ambiguity = 0.8;
-    if (answers.gradeWorry === "high") embeddings.fear = 0.8;
-    if (answers.gradeWorry === "medium") embeddings.perfection_loop = 0.6;
+    // Using actual DiagnosticAnswers properties
+    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('confused')) embeddings.confusion = 0.8;
+    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('unclear')) embeddings.ambiguity = 0.6;
+    if (answers.whyBestWork === 'no') embeddings.perfection_loop = 0.7;
+    if (answers.whyBestWork === 'maybe') embeddings.fear = 0.5;
+    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('scared')) embeddings.fear = 0.9;
+    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('overwhelm')) embeddings.overwhelm = 0.8;
+    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('tired')) embeddings.exhaustion = 0.7;
+    if (answers.eightyPercentThought && answers.eightyPercentThought.toLowerCase().includes('unclear')) embeddings.ambiguity = 0.8;
+    if (answers.avoidanceDuration && parseInt(answers.avoidanceDuration) > 30) embeddings.fear = 0.8;
+    if (answers.helpSeeking === 'no') embeddings.perfection_loop = 0.6;
     
     return embeddings;
   }
@@ -331,9 +351,11 @@ export default function StuckApp() {
       const embeddings = computeWordEmbeddings(answers);
       setWordEmbeddingResults(embeddings);
       
-      const topStuckType = Object.entries(embeddings).reduce((a, b) => 
-        embeddings[a[0]] > embeddings[b[0]] ? a : b
-      )[0];
+      // Get the top stuck type, with fallback if embeddings is empty
+      const embeddingEntries = Object.entries(embeddings);
+      const topStuckType = embeddingEntries.length > 0 
+        ? embeddingEntries.reduce((a, b) => b[1] > a[1] ? b : a)[0]
+        : "confusion";
       
       // Use Gemini API to generate follow-up questions
       const messages: ChatMessage[] = [
@@ -372,14 +394,21 @@ export default function StuckApp() {
         return [];
       }
       
-      return generatedQuestions.map((q: any, index: number) => ({
-        id: `gemini_${index + 1}` as any,
+      type ParsedGeminiQuestion = {
+        prompt?: string;
+        options?: QuestionOption[];
+      };
+
+      return (generatedQuestions as ParsedGeminiQuestion[]).map((q, index) => ({
+        id: `gemini_${index + 1}` as unknown as AdaptiveQuestion["id"],
         prompt: q.prompt || `Follow-up question ${index + 1}`,
-        options: Array.isArray(q.options) ? q.options : [
-          { value: "yes", label: "Yes" },
-          { value: "no", label: "No" },
-          { value: "maybe", label: "Sometimes" }
-        ]
+        options: Array.isArray(q.options)
+          ? q.options
+          : [
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+              { value: "maybe", label: "Sometimes" },
+            ],
       }));
     } catch (error) {
       console.error('Error generating Gemini questions:', error);
@@ -388,74 +417,118 @@ export default function StuckApp() {
   }
 
   async function handleNextQuestion(): Promise<void> {
-    if (!currentQuestion) {
-      return;
+  if (!currentQuestion) {
+    return;
+  }
+
+  const activeQuestion =
+    geminiQuestions.length > 0
+      ? geminiQuestions[currentGeminiIndex]
+      : currentQuestion;
+
+  if (!activeQuestion) {
+    return;
+  }
+
+  // For base questions:
+  // - slider question requires a selected numeric value
+  // - text questions require 19+ chars
+  if (geminiQuestions.length === 0) {
+    if (activeQuestion.kind === "slider") {
+      if (answers[activeQuestion.id] === undefined) {
+        setErrorMessage("Please move the slider to continue.");
+        return;
+      }
+    } else {
+      const responseText = (openResponses[activeQuestion.id] || "").trim();
+      if (responseText.length < 19) {
+        setErrorMessage("Please provide at least 19 characters in your response.");
+        return;
+      }
+
+      // Persist text response into answers
+      setAnswers((previous) => ({
+        ...previous,
+        [activeQuestion.id]: responseText,
+      }));
     }
 
-    if (answers[currentQuestion.id] === undefined) {
-      setErrorMessage("Select an option to continue.");
+    const latestDiagnosticAnswers = getLatestDiagnosticAnswers({
+      ...answers,
+      ...(activeQuestion.kind === "slider"
+        ? {}
+        : { [activeQuestion.id]: (openResponses[activeQuestion.id] || "").trim() }),
+    });
+
+    setErrorMessage("");
+
+    if (currentQuestionIndex < questionQueue.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
       return;
     }
 
     setLoading(true);
-    setErrorMessage("");
-
     try {
-      // Check if we've completed the base 5 questions
-      const baseQuestionsCompleted = Object.keys(answers).length >= 5 && geminiQuestions.length === 0;
-      
-      if (baseQuestionsCompleted) {
-        // Generate Gemini questions based on initial responses
-        const generatedQuestions = await generateGeminiQuestions(answers);
-        setGeminiQuestions(generatedQuestions);
-        setCurrentGeminiIndex(0);
-        
-        if (generatedQuestions.length > 0) {
-          // Show the first Gemini question
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Check if we're currently on Gemini questions
-      if (geminiQuestions.length > 0 && currentGeminiIndex < geminiQuestions.length) {
-        // Move to next Gemini question or finish
-        if (currentGeminiIndex < geminiQuestions.length - 1) {
-          setCurrentGeminiIndex(currentGeminiIndex + 1);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Final diagnosis with all answers
-      const response = await requestDiagnosis(answers, context, history);
-
-      if (response.status === "needs_more_answers") {
-        setQuestionQueue(response.questionQueue);
-        const nextUnansweredIndex = response.questionQueue.findIndex(
-          (question) => answers[question.id] === undefined,
-        );
-        const fallbackIndex = Math.min(
-          currentQuestionIndex + 1,
-          response.questionQueue.length - 1,
-        );
-        setCurrentQuestionIndex(
-          nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
-        );
-        return;
-      }
-
-      applyDiagnosisResponse(response);
-      setActiveTab("result");
-    } catch {
-      setErrorMessage("Could not process this answer. Please try again.");
-    } finally {
+      const generatedQuestions = await generateGeminiQuestions(latestDiagnosticAnswers);
+      setGeminiQuestions(generatedQuestions);
+      setCurrentGeminiIndex(0);
       setLoading(false);
+      return;
+    } catch {
+      setErrorMessage("Could not generate follow-up questions. Please try again.");
+      setLoading(false);
+      return;
+    }
+  } else {
+    if (answers[activeQuestion.id] === undefined) {
+      setErrorMessage("Select an option to continue.");
+      return;
     }
   }
 
+  setErrorMessage("");
+
+  if (currentGeminiIndex < geminiQuestions.length - 1) {
+    setCurrentGeminiIndex(currentGeminiIndex + 1);
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
+    const response = await requestDiagnosis(latestDiagnosticAnswers, history);
+
+    if (response.status === "needs_more_answers") {
+      setQuestionQueue(response.questionQueue);
+      const nextUnansweredIndex = response.questionQueue.findIndex(
+        (question) => !latestDiagnosticAnswers[question.id],
+      );
+      const fallbackIndex = Math.min(
+        currentQuestionIndex + 1,
+        response.questionQueue.length - 1,
+      );
+      setCurrentQuestionIndex(
+        nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
+      );
+      setLoading(false);
+      return;
+    }
+
+    applyDiagnosisResponse(response);
+    setActiveTab("result");
+  } catch {
+    setErrorMessage("Could not process this answer. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+}
+
   function handlePreviousQuestion(): void {
     setErrorMessage("");
+    if (geminiQuestions.length > 0) {
+      setCurrentGeminiIndex((previous) => Math.max(0, previous - 1));
+      return;
+    }
     setCurrentQuestionIndex((previous) => Math.max(0, previous - 1));
   }
 
@@ -488,7 +561,7 @@ export default function StuckApp() {
       return;
     }
 
-    setTimerSecondsLeft(activeStep.minutes * 60);
+    setTimerSecondsLeft(activeStep.timeMinutes * 60);
     setTimerRunning(false);
   }
 
@@ -535,7 +608,7 @@ export default function StuckApp() {
   }
 
   async function saveSession(): Promise<void> {
-    const completeAnswers = asCompleteAnswers(answers);
+    const completeAnswers = asCompleteAnswers(getLatestDiagnosticAnswers());
     if (!diagnosis || !plan || !completeAnswers) {
       setErrorMessage("Diagnosis is incomplete. Finish diagnosis before saving.");
       return;
@@ -557,25 +630,27 @@ export default function StuckApp() {
           ? crypto.randomUUID()
           : `session-${Date.now()}`,
       userId: user?.uid || "anonymous",
-      createdAt: now,
-      subject: context.subject.trim() || "Unknown Subject",
-      assignmentType: context.assignmentType.trim() || "Unknown Assignment",
+      timestamp: now,
       stuckType: diagnosis.primaryType,
-      emotion: completeAnswers.strongestEmotion,
-      timeStuckMinutes: context.timeStuckMinutes,
-      interventionUsed,
+      diagnosis,
+      interventionPlan: plan,
       outcome: selectedOutcome,
+      durationMinutes: 0,
+      distortions: [],
+      safetyFlags: [],
     };
 
     try {
+      // Save to local storage instead of Firebase
       if (user) {
-        await saveUserSession(user.uid, sessionRecord);
+        const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
       }
       
       const updatedHistory = [sessionRecord, ...history].slice(0, MAX_HISTORY);
       setHistory(updatedHistory);
 
-      const refreshed = await requestDiagnosis(completeAnswers, context, updatedHistory);
+      const refreshed = await requestDiagnosis(completeAnswers, updatedHistory);
       if (refreshed.status === "diagnosed") {
         setInsights(refreshed.insights);
         setProfile(refreshed.profile);
@@ -594,6 +669,7 @@ export default function StuckApp() {
   function resetToHome(): void {
     setActiveTab("home");
     setAnswers({});
+    setOpenResponses({});
     setQuestionQueue([]);
     setCurrentQuestionIndex(0);
     setGeminiQuestions([]);
@@ -608,9 +684,8 @@ export default function StuckApp() {
 
   async function clearHistory(): Promise<void> {
     try {
-      if (user) {
-        await clearUserSessions(user.uid);
-      }
+      // Clear from local storage instead of Firebase
+      localStorage.removeItem(STORAGE_KEY);
       setHistory([]);
       setNotice("History cleared.");
     } catch (error) {
@@ -620,10 +695,6 @@ export default function StuckApp() {
   }
 
   const recentHistory = history.slice(0, 6);
-  const diagnosisLabel = diagnosis
-    ? STUCK_TYPE_LABELS[diagnosis.primaryType]
-    : null;
-  const firstAction = plan?.firstAction ?? null;
 
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50">
@@ -739,7 +810,7 @@ export default function StuckApp() {
               <div className="space-y-3">
                 <h2 className="text-xl font-semibold">Start When You Freeze</h2>
                 <p className="max-w-3xl text-sm text-emerald-200 md:text-base">
-                  Feeling stuck on your academic work? Let us help you identify what's holding you back.
+                  Feeling stuck on your academic work? Let us help you identify what&apos;s holding you back.
                 </p>
               </div>
 
@@ -779,7 +850,7 @@ export default function StuckApp() {
                     <div className="flex-shrink-0 w-8 h-8 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">1</div>
                     <div>
                       <h3 className="font-semibold text-emerald-100">Quick Diagnosis</h3>
-                      <p className="text-sm">We ask 5 research-based questions to understand why you're stuck</p>
+                      <p className="text-sm">We ask 5 research-based questions to understand why you&apos;re stuck</p>
                     </div>
                   </div>
                   
@@ -803,7 +874,7 @@ export default function StuckApp() {
                 <div className="rounded-xl border border-lime-600/50 bg-lime-950/30 p-4">
                   <h3 className="text-lg font-semibold text-lime-200 mb-2">About the Questionnaire</h3>
                   <p className="text-sm text-emerald-200">
-                    This brief questionnaire helps diagnose academic paralysis - that feeling when you know what you need to do but can't seem to start. 
+                    This brief questionnaire helps diagnose academic paralysis - that feeling when you know what you need to do but can&apos;t seem to start.
                     Based on research with students and professors, we identify patterns that keep you stuck.
                   </p>
                 </div>
@@ -822,239 +893,6 @@ export default function StuckApp() {
                   type="button"
                   onClick={resetToHome}
                   className="rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                >
-                  Back to Home
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {activeTab === "context" ? (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
-                Session Context
-              </h3>
-
-              <div>
-                <label htmlFor="subject" className="text-xs text-emerald-300">
-                  Subject
-                </label>
-                <input
-                  id="subject"
-                  value={context.subject}
-                  onChange={(event) =>
-                    setContext((previous) => ({
-                      ...previous,
-                      subject: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Chemistry"
-                  className="mt-1 w-full rounded-lg border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm outline-none ring-lime-300 focus:ring"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="assignment" className="text-xs text-emerald-300">
-                  Assignment Type
-                </label>
-                <input
-                  id="assignment"
-                  value={context.assignmentType}
-                  onChange={(event) =>
-                    setContext((previous) => ({
-                      ...previous,
-                      assignmentType: event.target.value,
-                    }))
-                  }
-                  placeholder="Homework / Essay / Lab"
-                  className="mt-1 w-full rounded-lg border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm outline-none ring-lime-300 focus:ring"
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {["Homework", "Essay", "Lab", "Problem Set", "Exam Prep"].map(
-                    (preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() =>
-                          setContext((previous) => ({
-                            ...previous,
-                            assignmentType: preset,
-                          }))
-                        }
-                        className="rounded-md border border-emerald-800 px-2 py-1 text-xs hover:border-lime-500"
-                      >
-                        {preset}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Time Stuck (minutes)</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        timeStuckMinutes: Math.max(0, previous.timeStuckMinutes - 5),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-14 text-center text-sm">
-                    {context.timeStuckMinutes}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        timeStuckMinutes: Math.min(300, previous.timeStuckMinutes + 5),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Open Tasks</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        tasksOpenCount: Math.max(1, previous.tasksOpenCount - 1),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-14 text-center text-sm">
-                    {context.tasksOpenCount}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setContext((previous) => ({
-                        ...previous,
-                        tasksOpenCount: Math.min(20, previous.tasksOpenCount + 1),
-                      }))
-                    }
-                    className="rounded-md border border-emerald-800 px-3 py-1 text-sm hover:border-lime-500"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Energy Level</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={`energy-${value}`}
-                      type="button"
-                      onClick={() =>
-                        setContext((previous) => ({
-                          ...previous,
-                          energyLevel: value as 1 | 2 | 3 | 4 | 5,
-                        }))
-                      }
-                      className={`rounded-md border px-2 py-1 text-xs ${
-                        context.energyLevel === value
-                          ? "border-lime-300 bg-lime-300/20"
-                          : "border-emerald-800 hover:border-lime-500"
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-emerald-300">Panic Level</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={`panic-${value}`}
-                      type="button"
-                      onClick={() =>
-                        setContext((previous) => ({
-                          ...previous,
-                          panicLevel: value as 1 | 2 | 3 | 4 | 5,
-                        }))
-                      }
-                      className={`rounded-md border px-2 py-1 text-xs ${
-                        context.panicLevel === value
-                          ? "border-lime-300 bg-lime-300/20"
-                          : "border-emerald-800 hover:border-lime-500"
-                      }`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setContext((previous) => ({
-                      ...previous,
-                      repeatedRereading: !previous.repeatedRereading,
-                    }))
-                  }
-                  className={`rounded-md border px-3 py-2 text-xs text-left ${
-                    context.repeatedRereading
-                      ? "border-lime-300 bg-lime-300/20"
-                      : "border-emerald-800 hover:border-lime-500"
-                  }`}
-                >
-                  Repeated rereading: {context.repeatedRereading ? "Yes" : "No"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setContext((previous) => ({
-                      ...previous,
-                      excessiveEditing: !previous.excessiveEditing,
-                    }))
-                  }
-                  className={`rounded-md border px-3 py-2 text-xs text-left ${
-                    context.excessiveEditing
-                      ? "border-lime-300 bg-lime-300/20"
-                      : "border-emerald-800 hover:border-lime-500"
-                  }`}
-                >
-                  Excessive editing: {context.excessiveEditing ? "Yes" : "No"}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={startQuestionnaire}
-                  disabled={loading}
-                  className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? "Starting..." : "Start Diagnosis"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetToHome}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
                 >
                   Back to Home
                 </button>
@@ -1101,36 +939,85 @@ export default function StuckApp() {
                     ) : null}
                   </div>
 
-                  <div className="grid gap-3">
-                    {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
-                      ? geminiQuestions[currentGeminiIndex].options
-                      : currentQuestion.options
-                    ).map((option) => {
-                      const currentQ = geminiQuestions.length > 0 ? geminiQuestions[currentGeminiIndex] : currentQuestion;
-                      const isSelected = answers[currentQ?.id] === option.value;
+                  {/* Slider for slider-type questions */}
+                  {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]?.kind === "slider"
+                    ? geminiQuestions[currentGeminiIndex]
+                    : currentQuestion?.kind === "slider" ? currentQuestion : null) ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <input
+                          type="range"
+                          min={currentQuestion?.slider?.min ?? 0}
+                          max={currentQuestion?.slider?.max ?? 100}
+                          step={currentQuestion?.slider?.step ?? 1}
+                          value={answers[currentQuestion?.id] ?? currentQuestion?.slider?.min ?? 0}
+                          onChange={(e) => currentQuestion && updateAnswer(currentQuestion.id, e.target.value)}
+                          className="w-full h-2 bg-emerald-900 rounded-lg appearance-none cursor-pointer accent-lime-300"
+                        />
+                      </div>
+                      {currentQuestion?.slider?.marks && (
+                        <div className="flex justify-between text-xs text-emerald-400">
+                          {currentQuestion.slider.marks.map((mark) => (
+                            <span key={mark.value}>{mark.label}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Button options for non-slider questions */
+                    <div className="grid gap-3">
+                      {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
+                        ? geminiQuestions[currentGeminiIndex].options
+                        : currentQuestion.options
+                      ).map((option) => {
+                        const currentQ = geminiQuestions.length > 0 ? geminiQuestions[currentGeminiIndex] : currentQuestion;
+                        const isSelected = answers[currentQ?.id] === option.value;
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => currentQ && updateAnswer(currentQ.id, option.value)}
-                          className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
-                            isSelected
-                              ? "border-lime-300 bg-lime-300/20"
-                              : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => currentQ && updateAnswer(currentQ.id, option.value)}
+                            className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
+                              isSelected
+                                ? "border-lime-300 bg-lime-300/20"
+                                : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Open Response Box for Base Questions */}
+                  {geminiQuestions.length === 0 && !currentQuestion?.slider && (
+                    <div className="mt-4 space-y-2 rounded-lg border border-emerald-800 bg-emerald-900/40 p-3">
+                      <label htmlFor={`open-response-${currentQuestion?.id}`} className="block text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                        Write your response here (at least 19 characters)
+                      </label>
+                      <textarea
+                        id={`open-response-${currentQuestion?.id}`}
+                        value={openResponses[currentQuestion?.id] || ""}
+                        onChange={(e) => updateOpenResponse(currentQuestion?.id, e.target.value)}
+                        placeholder="Share any additional context or thoughts about your response..."
+                        className="w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-emerald-100 outline-none ring-lime-300 focus:ring placeholder:text-emerald-600"
+                        rows={3}
+                      />
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2 pt-2">
                     <button
                       type="button"
                       onClick={handlePreviousQuestion}
-                      disabled={currentQuestionIndex === 0 || loading}
+                      disabled={
+                        loading ||
+                        (geminiQuestions.length > 0
+                          ? currentGeminiIndex === 0
+                          : currentQuestionIndex === 0)
+                      }
                       className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Back
@@ -1138,7 +1025,15 @@ export default function StuckApp() {
                     <button
                       type="button"
                       onClick={handleNextQuestion}
-                      disabled={loading}
+                      disabled={
+                        loading ||
+                        (geminiQuestions.length === 0
+                          ? currentQuestion?.kind === "slider"
+                            ? answers[currentQuestion.id] === undefined
+                            : (openResponses[currentQuestion?.id] || "").length < 19
+                          : !geminiQuestions[currentGeminiIndex] ||
+                            answers[geminiQuestions[currentGeminiIndex].id] === undefined)
+                      }
                       className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loading ? "Thinking..." : "Next"}
@@ -1360,15 +1255,16 @@ export default function StuckApp() {
                 </h3>
                 {insights.length > 0 ? (
                   <div className="mt-3 space-y-2">
-                    {insights.map((insight) => (
+                    {insights.map((insight, index) => (
                       <div
-                        key={insight.key}
+                        key={`insight-${index}`}
                         className="rounded-lg border border-emerald-800 bg-emerald-950/60 p-3"
                       >
                         <p className="text-xs text-emerald-300">
-                          Confidence: {insight.confidence}
+                          {insight.type} (Severity: {insight.severity})
                         </p>
-                        <p className="mt-1 text-sm">{insight.message}</p>
+                        <p className="mt-1 text-sm">{insight.description}</p>
+                        <p className="mt-1 text-xs text-emerald-400">→ {insight.recommendation}</p>
                       </div>
                     ))}
                   </div>
@@ -1423,20 +1319,10 @@ export default function StuckApp() {
                         key={session.id}
                         type="button"
                         onClick={() => {
-                          setContext((previous) => ({
-                            ...previous,
-                            subject: session.subject,
-                            assignmentType: session.assignmentType,
-                            timeStuckMinutes: session.timeStuckMinutes,
-                          }));
-                          setNotice(
-                            `Loaded context from ${session.subject} (${session.assignmentType}).`,
-                          );
-                          setActiveTab("context");
+                          setNotice(`Reviewing ${STUCK_TYPE_LABELS[session.stuckType]} session.`);
                         }}
                         className="w-full rounded-lg border border-emerald-800 bg-emerald-950/60 p-3 text-left hover:border-lime-500"
                       >
-                        <p className="text-xs text-emerald-300">{session.subject}</p>
                         <p className="text-sm">
                           {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
                           {OUTCOME_LABELS[session.outcome]}
@@ -1459,31 +1345,12 @@ export default function StuckApp() {
                 >
                   Open Insights Tab
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("context")}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                >
-                  Open Context Tab
-                </button>
               </div>
             </div>
           ) : null}
         </section>
       </div>
 
-      <SideChatbot
-        isOpen={chatOpen}
-        onOpen={() => setChatOpen(true)}
-        onClose={() => setChatOpen(false)}
-        subject={context.subject}
-        assignmentType={context.assignmentType}
-        diagnosisLabel={diagnosisLabel}
-        firstAction={firstAction}
-        onOpenDiagnosisTab={() => setActiveTab("questionnaire")}
-        onOpenPlanTab={() => setActiveTab("result")}
-      />
-      
       {/* Auth Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">

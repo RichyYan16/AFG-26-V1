@@ -112,6 +112,25 @@ export interface TypeScore {
   reasons: string[];
 }
 
+export type QuestionKind = 'text' | 'slider';
+
+export interface SliderConfig {
+  min: number;
+  max: number;
+  step: number;
+  minLabel?: string;
+  maxLabel?: string;
+  marks?: { value: number; label: string }[];
+}
+
+export interface AdaptiveQuestion {
+  id: keyof DiagnosticAnswers;
+  prompt: string;
+  options: readonly QuestionOption[];
+  kind?: QuestionKind
+  slider?: SliderConfig
+}
+
 export interface DiagnosisResult {
   primaryType: StuckType;
   confidence: number;

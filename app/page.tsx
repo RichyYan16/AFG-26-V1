@@ -6,7 +6,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AuthForm from "@/components/AuthForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, User } from "lucide-react";
-import { getUserSessions, saveUserSession, clearUserSessions } from "@/services/firebaseService";
 import { sendMessageToAPI, type ChatMessage } from "@/app/services/api";
 import type {
   AdaptiveQuestion,
@@ -98,7 +97,9 @@ async function loadUserHistory(userId: string): Promise<SessionRecord[]> {
   }
 
   try {
-    return await getUserSessions(userId, MAX_HISTORY);
+    // Load from local storage instead of Firebase
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
   } catch (error) {
     console.error("Error loading user history:", error);
     return [];
@@ -416,104 +417,111 @@ export default function StuckApp() {
   }
 
   async function handleNextQuestion(): Promise<void> {
-    if (!currentQuestion) {
-      return;
-    }
+  if (!currentQuestion) {
+    return;
+  }
 
-    const activeQuestion =
-      geminiQuestions.length > 0
-        ? geminiQuestions[currentGeminiIndex]
-        : currentQuestion;
+  const activeQuestion =
+    geminiQuestions.length > 0
+      ? geminiQuestions[currentGeminiIndex]
+      : currentQuestion;
 
-    if (!activeQuestion) {
-      return;
-    }
+  if (!activeQuestion) {
+    return;
+  }
 
-    // For base questions (open response), require 19+ characters
-    if (geminiQuestions.length === 0) {
+  // For base questions:
+  // - slider question requires a selected numeric value
+  // - text questions require 19+ chars
+  if (geminiQuestions.length === 0) {
+    if (activeQuestion.kind === "slider") {
+      if (answers[activeQuestion.id] === undefined) {
+        setErrorMessage("Please move the slider to continue.");
+        return;
+      }
+    } else {
       const responseText = (openResponses[activeQuestion.id] || "").trim();
       if (responseText.length < 19) {
         setErrorMessage("Please provide at least 19 characters in your response.");
         return;
       }
 
-      // Persist base-question responses into `answers` so diagnosis completion works.
-      const updatedAnswers = {
-        ...answers,
+      // Persist text response into answers
+      setAnswers((previous) => ({
+        ...previous,
         [activeQuestion.id]: responseText,
-      };
-      const latestDiagnosticAnswers = getLatestDiagnosticAnswers(updatedAnswers);
-      setAnswers(updatedAnswers);
-
-      setErrorMessage("");
-
-      // Check if we're on base questions or Gemini questions
-      // We're on base questions - just move to next question
-      if (currentQuestionIndex < questionQueue.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-        return;
-      }
-
-      // All base questions answered - generate Gemini questions
-      setLoading(true);
-      try {
-        const generatedQuestions = await generateGeminiQuestions(latestDiagnosticAnswers);
-        setGeminiQuestions(generatedQuestions);
-        setCurrentGeminiIndex(0);
-        setLoading(false);
-        return;
-      } catch {
-        setErrorMessage("Could not generate follow-up questions. Please try again.");
-        setLoading(false);
-        return;
-      }
-    } else {
-      // For Gemini questions, require a selected option
-      if (answers[activeQuestion.id] === undefined) {
-        setErrorMessage("Select an option to continue.");
-        return;
-      }
+      }));
     }
+
+    const latestDiagnosticAnswers = getLatestDiagnosticAnswers({
+      ...answers,
+      ...(activeQuestion.kind === "slider"
+        ? {}
+        : { [activeQuestion.id]: (openResponses[activeQuestion.id] || "").trim() }),
+    });
 
     setErrorMessage("");
 
-    // We're on Gemini questions
-    if (currentGeminiIndex < geminiQuestions.length - 1) {
-      // Move to next Gemini question
-      setCurrentGeminiIndex(currentGeminiIndex + 1);
+    if (currentQuestionIndex < questionQueue.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
       return;
     }
 
-    // All Gemini questions answered - get final diagnosis
     setLoading(true);
     try {
-      const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
-      const response = await requestDiagnosis(latestDiagnosticAnswers, history);
-
-      if (response.status === "needs_more_answers") {
-        setQuestionQueue(response.questionQueue);
-        const nextUnansweredIndex = response.questionQueue.findIndex(
-          (question) => !latestDiagnosticAnswers[question.id],
-        );
-        const fallbackIndex = Math.min(
-          currentQuestionIndex + 1,
-          response.questionQueue.length - 1,
-        );
-        setCurrentQuestionIndex(
-          nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
-        );
-        setLoading(false);
-        return;
-      }
-
-      applyDiagnosisResponse(response);
-      setActiveTab("result");
-    } catch {
-      setErrorMessage("Could not process this answer. Please try again.");
-    } finally {
+      const generatedQuestions = await generateGeminiQuestions(latestDiagnosticAnswers);
+      setGeminiQuestions(generatedQuestions);
+      setCurrentGeminiIndex(0);
       setLoading(false);
+      return;
+    } catch {
+      setErrorMessage("Could not generate follow-up questions. Please try again.");
+      setLoading(false);
+      return;
+    }
+  } else {
+    if (answers[activeQuestion.id] === undefined) {
+      setErrorMessage("Select an option to continue.");
+      return;
     }
   }
+
+  setErrorMessage("");
+
+  if (currentGeminiIndex < geminiQuestions.length - 1) {
+    setCurrentGeminiIndex(currentGeminiIndex + 1);
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
+    const response = await requestDiagnosis(latestDiagnosticAnswers, history);
+
+    if (response.status === "needs_more_answers") {
+      setQuestionQueue(response.questionQueue);
+      const nextUnansweredIndex = response.questionQueue.findIndex(
+        (question) => !latestDiagnosticAnswers[question.id],
+      );
+      const fallbackIndex = Math.min(
+        currentQuestionIndex + 1,
+        response.questionQueue.length - 1,
+      );
+      setCurrentQuestionIndex(
+        nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
+      );
+      setLoading(false);
+      return;
+    }
+
+    applyDiagnosisResponse(response);
+    setActiveTab("result");
+  } catch {
+    setErrorMessage("Could not process this answer. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+}
 
   function handlePreviousQuestion(): void {
     setErrorMessage("");
@@ -633,8 +641,10 @@ export default function StuckApp() {
     };
 
     try {
+      // Save to local storage instead of Firebase
       if (user) {
-        await saveUserSession(user.uid, sessionRecord);
+        const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
       }
       
       const updatedHistory = [sessionRecord, ...history].slice(0, MAX_HISTORY);
@@ -674,9 +684,8 @@ export default function StuckApp() {
 
   async function clearHistory(): Promise<void> {
     try {
-      if (user) {
-        await clearUserSessions(user.uid);
-      }
+      // Clear from local storage instead of Firebase
+      localStorage.removeItem(STORAGE_KEY);
       setHistory([]);
       setNotice("History cleared.");
     } catch (error) {

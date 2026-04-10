@@ -16,7 +16,6 @@
     "@tensorflow/tfjs-node": "^3.21.0",
     "clsx": "^2.1.1",
     "expo": "^54.0.33",
-    "firebase": "^12.11.0",
     "framer-motion": "^12.4.7",
     "katex": "^0.16.38",
     "lucide-react": "^0.475.0",

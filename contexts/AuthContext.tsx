@@ -1,19 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import type { User as FirebaseUser } from "firebase/auth";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { createUserProfile } from "@/services/firebaseService";
+import { createContext, useContext, useState } from "react";
+
+interface User {
+  uid: string;
+  email: string | null;
+}
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -24,60 +19,26 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [loading, setLoading] = useState(Boolean(auth));
-
-  useEffect(() => {
-    if (!auth) {
-      console.warn("Firebase auth not available - using mock auth");
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const signIn = async (email: string, password: string) => {
-    if (!auth) {
-      console.warn("Firebase auth not available - skipping sign in");
-      return;
-    }
-    await signInWithEmailAndPassword(auth, email, password);
+    console.log("Mock sign in:", email);
+    setUser({ uid: "mock-uid", email });
   };
 
   const signUp = async (email: string, password: string) => {
-    if (!auth) {
-      console.warn("Firebase auth not available - skipping sign up");
-      return;
-    }
-
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password,
-    );
-
-    await createUserProfile(userCredential.user.uid, email);
+    console.log("Mock sign up:", email);
+    setUser({ uid: "mock-uid", email });
   };
 
   const logout = async () => {
-    if (!auth) {
-      console.warn("Firebase auth not available - skipping logout");
-      return;
-    }
-    await signOut(auth);
+    console.log("Mock logout");
+    setUser(null);
   };
 
   const resetPassword = async (email: string) => {
-    if (!auth) {
-      console.warn("Firebase auth not available - skipping password reset");
-      return;
-    }
-    await sendPasswordResetEmail(auth, email);
+    console.log("Mock password reset:", email);
   };
 
   const value = {

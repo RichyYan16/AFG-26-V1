@@ -70,14 +70,33 @@ async function initializeModelWeights() {
       data = (await response.json()) as LogisticWeightsFile;
     }
 
-    // Create tensors from loaded data
-    // Reshape weights from [6, inputDim] to [inputDim, 6] (row-major to column-major)
+    // Create tensors from loaded data.
+    // Accept either [6, inputDim] (class-major) or [inputDim, 6] (feature-major).
     const weightsArray = data.weights;
-    const flatWeights = weightsArray.flat(); // Flatten to 1D
-    const inputDim = data.inputDim || weightsArray[0]?.length || EMBEDDING_MODEL_CONFIG.dimension;
+    const inputDim =
+      data.inputDim || weightsArray[0]?.length || EMBEDDING_MODEL_CONFIG.dimension;
+    const outputDim = STUCK_TYPES.length;
+
+    if (!Array.isArray(weightsArray) || weightsArray.length === 0) {
+      throw new Error("Weights file contains no weight rows");
+    }
+
+    const rowLength = weightsArray[0]?.length ?? 0;
+    const isClassMajor = weightsArray.length === outputDim && rowLength === inputDim;
+    const isFeatureMajor = weightsArray.length === inputDim && rowLength === outputDim;
+
+    if (!isClassMajor && !isFeatureMajor) {
+      throw new Error(
+        `Unexpected weights shape [${weightsArray.length}, ${rowLength}]. Expected [${outputDim}, ${inputDim}] or [${inputDim}, ${outputDim}]`,
+      );
+    }
+
+    const weightTensor = (isClassMajor
+      ? tf.tensor2d(weightsArray, [outputDim, inputDim]).transpose()
+      : tf.tensor2d(weightsArray, [inputDim, outputDim])) as tf.Tensor2D;
     
     MODEL_WEIGHTS = {
-      weights: tf.tensor2d(flatWeights, [inputDim, 6]),
+      weights: weightTensor,
       biases: tf.tensor1d(data.biases),
       inputDim,
     };

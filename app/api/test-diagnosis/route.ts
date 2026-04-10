@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       );
     }
 
-    console.log("🚀 Running Stuck Diagnosis Model Test\n");
+    console.log(" Running Stuck Diagnosis Model Test\n");
 
     // Test Case: Open-response answers
     const testAnswers: DiagnosticAnswers = {
@@ -37,14 +37,14 @@ export async function GET(request: Request) {
       helpSeeking: "Intimidated and embarrassed. I feel like asking for help means admitting I'm not smart enough.",
     };
 
-    console.log("📝 TEST: Diagnosis with sample answers");
+    console.log(" TEST: Diagnosis with sample answers");
     console.log("─".repeat(70));
 
     // Run diagnosis
     console.log("⏳ Running diagnosis...");
     const diagnosis = await diagnoseWithHybridModel(testAnswers);
 
-    console.log("✅ DIAGNOSIS RESULT:");
+    console.log(" DIAGNOSIS RESULT:");
     console.log(`   Primary Type: ${diagnosis.primaryType}`);
     console.log(`   Confidence: ${(diagnosis.confidence * 100).toFixed(1)}%`);
     console.log(`   Summary: ${diagnosis.summary}`);
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     // Generate interventions
     console.log("\n⏳ Generating intervention plans...");
     const plans = await buildMultipleInterventionPlans(diagnosis.primaryType);
-    console.log(`✅ Generated ${plans.length} intervention plan(s)`);
+    console.log(` Generated ${plans.length} intervention plan(s)`);
 
     // Detect distortions
     console.log("\n⏳ Analyzing thought patterns...");
@@ -67,8 +67,8 @@ export async function GET(request: Request) {
       panicScore: 0.5,
     });
 
-    console.log(`✅ Found ${distortions.length} thought distortion(s)`);
-    console.log(`✅ Found ${safetyFlags.length} safety flag(s)`);
+    console.log(` Found ${distortions.length} thought distortion(s)`);
+    console.log(` Found ${safetyFlags.length} safety flag(s)`);
 
     // Return results
     return Response.json(
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error(" Error:", error);
     return Response.json(
       {
         error: "Test failed",

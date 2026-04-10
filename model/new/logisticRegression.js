@@ -96,12 +96,12 @@ async function initializeModelWeights() {
             weights: tf.tensor2d(flatWeights, [512, 6]),
             biases: tf.tensor1d(data.biases),
         };
-        console.log("✅ Logistic regression weights loaded successfully");
+        console.log(" Logistic regression weights loaded successfully");
         console.log(`   Weights shape: [512, 6]`);
         console.log(`   Biases shape: [6]\n`);
     }
     catch (error) {
-        console.error(`❌ Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(` Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
         console.error(`   Initializing with random weights as fallback\n`);
         // Fallback: Initialize with small random weights
         MODEL_WEIGHTS = {
@@ -122,6 +122,7 @@ async function classifyWithLogisticRegression(embeddingVector) {
     }
     // Convert embedding to tensor
     const embedding = tf.tensor2d([embeddingVector]); // [1, 512]
+    
     // Linear transformation: z = X * W + b
     const logits = tf.tidy(() => {
         const z = embedding

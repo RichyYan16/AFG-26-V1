@@ -1,10 +1,10 @@
 # How to Run the Mobile App
 
-## ⚠️ IMPORTANT: Run from MOBILE directory only!
+## ️ IMPORTANT: Run from MOBILE directory only!
 
 The mobile app must be run from the `mobile/` directory, NOT from the root directory.
 
-## 🚀 Correct Way to Start
+##  Correct Way to Start
 
 ```bash
 # Navigate to mobile directory FIRST
@@ -14,20 +14,20 @@ cd mobile
 npx expo start
 ```
 
-## ❌ What NOT to do
+##  What NOT to do
 
 ```bash
 # DON'T do this from root directory - causes version conflicts!
-npx expo start  # ❌ WRONG - This causes the slow loading
+npx expo start  #  WRONG - This causes the slow loading
 ```
 
-## 🔧 Why This Matters
+##  Why This Matters
 
 - **Root directory**: Has Next.js + Expo (conflict!)
-- **Mobile directory**: Has React Native + Expo only ✅
+- **Mobile directory**: Has React Native + Expo only 
 - **Version conflicts** cause Metro bundler to be slow and confused
 
-## 📱 After Starting
+##  After Starting
 
 1. **Scan QR code** with Expo Go app
 2. **Or press**:
@@ -35,7 +35,7 @@ npx expo start  # ❌ WRONG - This causes the slow loading
    - `a` for Android emulator  
    - `w` for web browser
 
-## 🛠️ If Still Slow
+## ️ If Still Slow
 
 Try these commands from the `mobile/` directory:
 
@@ -49,7 +49,7 @@ npm install
 npx expo start --clear
 ```
 
-## 📁 Directory Structure
+##  Directory Structure
 
 ```
 appsforgood/

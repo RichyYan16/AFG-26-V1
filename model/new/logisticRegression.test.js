@@ -9,10 +9,10 @@ exports.testLogisticRegression = testLogisticRegression;
 const logisticRegression_1 = require("./logisticRegression");
 // Test with a sample 512-dimensional embedding vector
 async function testLogisticRegression() {
-    console.log("🧪 Testing Logistic Regression Classifier\n");
+    console.log(" Testing Logistic Regression Classifier\n");
     // Get model info
     const modelInfo = (0, logisticRegression_1.getModelInfo)();
-    console.log("📊 Model Architecture:");
+    console.log(" Model Architecture:");
     console.log(`   Input Dimensions: ${modelInfo.inputDim}`);
     console.log(`   Output Dimensions: ${modelInfo.outputDim}`);
     console.log(`   Classes: ${modelInfo.classes.join(", ")}\n`);
@@ -21,7 +21,7 @@ async function testLogisticRegression() {
     const sampleEmbedding = Array(512)
         .fill(0)
         .map(() => (Math.random() - 0.5) * 0.5);
-    console.log("🔍 Test 1: Single Embedding Classification");
+    console.log(" Test 1: Single Embedding Classification");
     const result = await (0, logisticRegression_1.classifyWithLogisticRegression)(sampleEmbedding);
     console.log(`   Primary Type: ${result.primaryType}`);
     console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
@@ -32,7 +32,7 @@ async function testLogisticRegression() {
         console.log(`   ${type.padEnd(15)}: ${bar} ${(prob * 100).toFixed(1)}%`);
     });
     // Test batch classification
-    console.log("\n🔍 Test 2: Batch Classification (3 embeddings)");
+    console.log("\n Test 2: Batch Classification (3 embeddings)");
     const batchEmbeddings = [
         Array(512)
             .fill(0)
@@ -48,7 +48,7 @@ async function testLogisticRegression() {
     batchResults.forEach((res, i) => {
         console.log(`   Sample ${i + 1}: ${res.primaryType} (${(res.confidence * 100).toFixed(1)}% confidence)`);
     });
-    console.log("\n✅ Logistic Regression Classifier Test Complete");
+    console.log("\n Logistic Regression Classifier Test Complete");
 }
 // Run test if this file is executed directly
 if (require.main === module) {

@@ -15,7 +15,7 @@ import type { DiagnosticAnswers } from "./model/new/types";
 
 // Check for environment variable
 if (!process.env.GEMINI_API_KEY) {
-  console.error("\n❌ ERROR: GEMINI_API_KEY not set");
+  console.error("\n ERROR: GEMINI_API_KEY not set");
   console.error("\nTo run this model, you need to:");
   console.error("1. Get an API key from https://ai.google.dev/");
   console.error("2. Set it as an environment variable:");
@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 async function runTest() {
-  console.log("🚀 Starting Stuck Diagnosis Model Test\n");
+  console.log(" Starting Stuck Diagnosis Model Test\n");
   console.log("=" .repeat(70));
 
   // Test Case 1: Confusion
@@ -37,7 +37,7 @@ async function runTest() {
     helpSeeking: "I haven't asked for help because I'm embarrassed",
   };
 
-  console.log("\n📝 TEST 1: Confusion Example");
+  console.log("\n TEST 1: Confusion Example");
   console.log("─".repeat(70));
   console.log("Internal Voice: I can't figure this out, what if I'm not smart enough?");
   console.log("80% Thought: There's no way my work will be good enough");
@@ -46,7 +46,7 @@ async function runTest() {
   try {
     const diagnosis1 = await diagnoseWithHybridModel(confusionAnswers);
 
-    console.log("✅ DIAGNOSIS RESULT:");
+    console.log(" DIAGNOSIS RESULT:");
     console.log(`   Primary Type: ${diagnosis1.primaryType}`);
     console.log(`   Confidence: ${(diagnosis1.confidence * 100).toFixed(1)}%`);
     console.log(`   Summary: ${diagnosis1.summary}`);
@@ -69,7 +69,7 @@ async function runTest() {
     console.log("\n⏳ Generating intervention plans...\n");
     const plans = await buildMultipleInterventionPlans(diagnosis1.primaryType);
 
-    console.log("✅ INTERVENTION PLANS:");
+    console.log(" INTERVENTION PLANS:");
     plans.forEach((plan, i) => {
       console.log(`\n   Plan ${i + 1}: ${plan.headline}`);
       console.log(`   Why it works: ${plan.whyItWorks}`);
@@ -77,7 +77,7 @@ async function runTest() {
       console.log(`   Steps:`);
       plan.steps.forEach((step, j) => {
         console.log(`     ${j + 1}. [${step.timeMinutes}min] ${step.action}`);
-        if (step.tip) console.log(`        💡 ${step.tip}`);
+        if (step.tip) console.log(`         ${step.tip}`);
       });
     });
 
@@ -93,7 +93,7 @@ async function runTest() {
       panicScore: 0.5,
     });
 
-    console.log("✅ COGNITIVE ANALYSIS:");
+    console.log(" COGNITIVE ANALYSIS:");
     if (distortions.length > 0) {
       console.log(`   Thought Distortions Found: ${distortions.length}`);
       distortions.forEach((d) => {
@@ -109,11 +109,11 @@ async function runTest() {
         console.log(`     • ${flag}`);
       });
     } else {
-      console.log("     ✅ No safety concerns detected");
+      console.log("      No safety concerns detected");
     }
   } catch (error) {
     if (error instanceof Error) {
-      console.error("❌ Error:", error.message);
+      console.error(" Error:", error.message);
       if (error.message.includes("API key")) {
         console.error("\nMake sure GEMINI_API_KEY is set:");
         console.error("   export GEMINI_API_KEY='your-key-here'");
@@ -123,7 +123,7 @@ async function runTest() {
   }
 
   console.log("\n" + "=".repeat(70));
-  console.log("✨ Test Complete!\n");
+  console.log(" Test Complete!\n");
 }
 
 // Run the test

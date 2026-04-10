@@ -11,11 +11,11 @@ import {
 
 // Test with a sample 512-dimensional embedding vector
 async function testLogisticRegression() {
-  console.log("🧪 Testing Logistic Regression Classifier\n");
+  console.log(" Testing Logistic Regression Classifier\n");
 
   // Get model info
   const modelInfo = getModelInfo();
-  console.log("📊 Model Architecture:");
+  console.log(" Model Architecture:");
   console.log(`   Input Dimensions: ${modelInfo.inputDim}`);
   console.log(`   Output Dimensions: ${modelInfo.outputDim}`);
   console.log(`   Classes: ${modelInfo.classes.join(", ")}\n`);
@@ -26,7 +26,7 @@ async function testLogisticRegression() {
     .fill(0)
     .map(() => (Math.random() - 0.5) * 0.5);
 
-  console.log("🔍 Test 1: Single Embedding Classification");
+  console.log(" Test 1: Single Embedding Classification");
   const result = await classifyWithLogisticRegression(sampleEmbedding);
   console.log(`   Primary Type: ${result.primaryType}`);
   console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
@@ -39,7 +39,7 @@ async function testLogisticRegression() {
   });
 
   // Test batch classification
-  console.log("\n🔍 Test 2: Batch Classification (3 embeddings)");
+  console.log("\n Test 2: Batch Classification (3 embeddings)");
   const batchEmbeddings = [
     Array(512)
       .fill(0)

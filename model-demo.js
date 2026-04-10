@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * 🚀 STUCK DIAGNOSIS MODEL - LIVE EXECUTION DEMO
+ *  STUCK DIAGNOSIS MODEL - LIVE EXECUTION DEMO
  * 
  * This demonstrates the model running with realistic sample data
  * showing exactly what happens at each step of the RAW BASIC ALGORITHM
  */
 
 console.log("\n" + "=".repeat(80));
-console.log("🚀 STUCK DIAGNOSIS MODEL - LIVE EXECUTION");
+console.log(" STUCK DIAGNOSIS MODEL - LIVE EXECUTION");
 console.log("=".repeat(80));
 
 // ============================================================================
 // SAMPLE STUDENT INPUT
 // ============================================================================
-console.log("\n📝 STEP 1: Student Answers Diagnostic Questions");
+console.log("\n STEP 1: Student Answers Diagnostic Questions");
 console.log("─".repeat(80));
 
 const studentAnswers = {
@@ -37,7 +37,7 @@ console.log(`  • Grade worry: "${studentAnswers.gradeWorry}"`);
 // ============================================================================
 // STEP 1: COMPUTE EMBEDDING VECTOR
 // ============================================================================
-console.log("\n📊 STEP 2: Compute Embedding Vector [a, b, c, ...]");
+console.log("\n STEP 2: Compute Embedding Vector [a, b, c, ...]");
 console.log("─".repeat(80));
 console.log("⏳ Loading Universal Sentence Encoder model (512-dimensional)...");
 console.log("⏳ Embedding student answers to semantic vector...");
@@ -47,7 +47,7 @@ const embeddingVector = Array.from({ length: 512 }, () =>
   Number((Math.random() * 2 - 1).toFixed(4))
 );
 
-console.log("✅ Computed embedding vector:");
+console.log(" Computed embedding vector:");
 console.log(`   Dimensions: ${embeddingVector.length}`);
 console.log(
   `   Sample (first 10): [${embeddingVector
@@ -59,7 +59,7 @@ console.log(
 // ============================================================================
 // STEP 2: CLASSIFY TO STUCK TYPES (Embedding Scores)
 // ============================================================================
-console.log("\n🎯 STEP 3: Classify to Stuck Types via Embedding Similarity");
+console.log("\n STEP 3: Classify to Stuck Types via Embedding Similarity");
 console.log("─".repeat(80));
 console.log(
   "Computing cosine similarity between student vector and anchor statements...\n"
@@ -85,7 +85,7 @@ Object.entries(embeddingScores)
 // ============================================================================
 // STEP 3: GENERATE 5 INTERNAL FOLLOW-UP QUESTIONS
 // ============================================================================
-console.log("\n❓ STEP 4: Generate 5 Internal Follow-Up Questions for Gemini");
+console.log("\n STEP 4: Generate 5 Internal Follow-Up Questions for Gemini");
 console.log("─".repeat(80));
 console.log(
   "⏳ Calling Gemini API to generate questions for deeper analysis...\n"
@@ -107,7 +107,7 @@ internalFollowUpQuestions.forEach((q, i) => {
 // ============================================================================
 // STEP 4: CALL GEMINI FOR DIAGNOSIS REFINEMENT
 // ============================================================================
-console.log("\n🤖 STEP 5: Refine Diagnosis with Gemini Analysis");
+console.log("\n STEP 5: Refine Diagnosis with Gemini Analysis");
 console.log("─".repeat(80));
 console.log("⏳ Sending to Gemini (gemini-1.5-flash) with embedding context...");
 console.log("   Input: student answers + embedding vector + internal questions");
@@ -125,7 +125,7 @@ const geminiAnalysis = {
     "Primary confusion about task requirements; secondary worry about grade quality",
 };
 
-console.log("✅ Gemini Analysis Result:");
+console.log(" Gemini Analysis Result:");
 console.log(`   Primary Type: ${geminiAnalysis.primaryType}`);
 console.log(`   Confidence: ${geminiAnalysis.confidence}`);
 console.log(`   Summary: "${geminiAnalysis.summary}"`);
@@ -137,7 +137,7 @@ geminiAnalysis.factors.forEach((f) => {
 // ============================================================================
 // STEP 5: BLEND SCORES (50% Embedding + 50% Gemini)
 // ============================================================================
-console.log("\n⚖️ STEP 6: Blend Embedding & Gemini Scores");
+console.log("\n️ STEP 6: Blend Embedding & Gemini Scores");
 console.log("─".repeat(80));
 console.log("Formula: blendedScore = 0.5 * embeddingScore + 0.5 * geminiScore\n");
 
@@ -174,7 +174,7 @@ Object.entries(blendedScores)
 // ============================================================================
 // STEP 6: RANKED OUTPUT (HIGH → LOW CONFIDENCE)
 // ============================================================================
-console.log("\n🏆 STEP 7: Final Diagnosis (Ranked HIGH → LOW)");
+console.log("\n STEP 7: Final Diagnosis (Ranked HIGH → LOW)");
 console.log("─".repeat(80));
 
 const rankedTypes = Object.entries(blendedScores)
@@ -218,7 +218,7 @@ rankedTypes.forEach((r) => {
 // ============================================================================
 // STEP 7: GENERATE INTERVENTION PLANS
 // ============================================================================
-console.log("\n💡 STEP 8: Generate Multiple Intervention Plans");
+console.log("\n STEP 8: Generate Multiple Intervention Plans");
 console.log("─".repeat(80));
 console.log(
   "⏳ Calling Gemini to generate personalized intervention strategies...\n"
@@ -315,14 +315,14 @@ interventionPlans.forEach((plan, i) => {
   console.log(`  Steps:`);
   plan.steps.forEach((s) => {
     console.log(`    • [${s.time}min] ${s.action}`);
-    if (s.tip) console.log(`              💡 ${s.tip}`);
+    if (s.tip) console.log(`               ${s.tip}`);
   });
 });
 
 // ============================================================================
 // STEP 8: COGNITIVE DISTORTION ANALYSIS
 // ============================================================================
-console.log("\n🧠 STEP 9: Analyze Cognitive Distortions & Safety");
+console.log("\n STEP 9: Analyze Cognitive Distortions & Safety");
 console.log("─".repeat(80));
 
 const distortions = [
@@ -348,7 +348,7 @@ if (distortions.length > 0) {
     );
   });
 } else {
-  console.log("  ✅ No major distortions detected");
+  console.log("   No major distortions detected");
 }
 
 console.log("\nSafety Flags:");
@@ -358,14 +358,14 @@ if (safetyFlags.length > 0) {
   });
   console.log("  ℹ️  No critical intervention needed");
 } else {
-  console.log("  ✅ No safety concerns");
+  console.log("   No safety concerns");
 }
 
 // ============================================================================
 // FINAL OUTPUT
 // ============================================================================
 console.log("\n" + "=".repeat(80));
-console.log("✅ DIAGNOSIS COMPLETE");
+console.log(" DIAGNOSIS COMPLETE");
 console.log("=".repeat(80));
 
 const finalOutput = {
@@ -383,14 +383,14 @@ const finalOutput = {
   safetyFlags: safetyFlags,
 };
 
-console.log("\n📦 JSON OUTPUT (ready for API):");
+console.log("\n JSON OUTPUT (ready for API):");
 console.log(JSON.stringify(finalOutput, null, 2));
 
-console.log("\n🎯 Next Steps:");
+console.log("\n Next Steps:");
 console.log("  1. Display diagnosis results to student");
 console.log("  2. Show primary intervention plan");
 console.log("  3. Allow student to choose alternative plans");
 console.log("  4. Track which plan they chose and their progress");
 console.log("  5. Store session data for pattern analysis");
 
-console.log("\n✨ Model execution successful!\n");
+console.log("\n Model execution successful!\n");

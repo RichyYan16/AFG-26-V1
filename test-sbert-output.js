@@ -5,7 +5,7 @@
 (async () => {
   const { pipeline } = await import("@xenova/transformers");
 
-  console.log("🔄 Loading Sentence-BERT model (Xenova/all-MiniLM-L6-v2)...\n");
+  console.log(" Loading Sentence-BERT model (Xenova/all-MiniLM-L6-v2)...\n");
   const model = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
 
   // Test sentences
@@ -18,12 +18,12 @@
     "This doesn't feel good enough to submit",
   ];
 
-  console.log("📝 Test Sentences:\n");
+  console.log(" Test Sentences:\n");
   testSentences.forEach((sent, i) => {
     console.log(`${i + 1}. "${sent}"`);
   });
 
-  console.log("\n🔄 Computing embeddings...\n");
+  console.log("\n Computing embeddings...\n");
 
   for (const sentence of testSentences) {
     const result = await model(sentence, {
@@ -33,7 +33,7 @@
 
     const embedding = Array.from(result.data);
 
-    console.log(`📌 Sentence: "${sentence}"`);
+    console.log(` Sentence: "${sentence}"`);
     console.log(`   Dimensions: ${embedding.length}`);
     console.log(`   First 10 values: [${embedding.slice(0, 10).map(v => v.toFixed(4)).join(", ")}...]`);
     console.log(`   Last 10 values: [...${embedding.slice(-10).map(v => v.toFixed(4)).join(", ")}]`);
@@ -43,7 +43,7 @@
   }
 
   // Show cosine similarity between first two embeddings
-  console.log("📊 Computing cosine similarity between first two embeddings...\n");
+  console.log(" Computing cosine similarity between first two embeddings...\n");
 
   const emb1 = Array.from((await model(testSentences[0], { pooling: "mean", normalize: true })).data);
   const emb2 = Array.from((await model(testSentences[1], { pooling: "mean", normalize: true })).data);
@@ -55,5 +55,5 @@
   console.log(`Sentence 2: "${testSentences[1]}"`);
   console.log(`Cosine Similarity: ${similarity.toFixed(4)}\n`);
 
-  console.log("✅ Done!");
+  console.log(" Done!");
 })();

@@ -939,36 +939,63 @@ export default function StuckApp() {
                     ) : null}
                   </div>
 
-                  <div className="grid gap-3">
-                    {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
-                      ? geminiQuestions[currentGeminiIndex].options
-                      : currentQuestion.options
-                    ).map((option) => {
-                      const currentQ = geminiQuestions.length > 0 ? geminiQuestions[currentGeminiIndex] : currentQuestion;
-                      const isSelected = answers[currentQ?.id] === option.value;
+                  {/* Slider for slider-type questions */}
+                  {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]?.kind === "slider"
+                    ? geminiQuestions[currentGeminiIndex]
+                    : currentQuestion?.kind === "slider" ? currentQuestion : null) ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <input
+                          type="range"
+                          min={currentQuestion?.slider?.min ?? 0}
+                          max={currentQuestion?.slider?.max ?? 100}
+                          step={currentQuestion?.slider?.step ?? 1}
+                          value={answers[currentQuestion?.id] ?? currentQuestion?.slider?.min ?? 0}
+                          onChange={(e) => currentQuestion && updateAnswer(currentQuestion.id, e.target.value)}
+                          className="w-full h-2 bg-emerald-900 rounded-lg appearance-none cursor-pointer accent-lime-300"
+                        />
+                      </div>
+                      {currentQuestion?.slider?.marks && (
+                        <div className="flex justify-between text-xs text-emerald-400">
+                          {currentQuestion.slider.marks.map((mark) => (
+                            <span key={mark.value}>{mark.label}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Button options for non-slider questions */
+                    <div className="grid gap-3">
+                      {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
+                        ? geminiQuestions[currentGeminiIndex].options
+                        : currentQuestion.options
+                      ).map((option) => {
+                        const currentQ = geminiQuestions.length > 0 ? geminiQuestions[currentGeminiIndex] : currentQuestion;
+                        const isSelected = answers[currentQ?.id] === option.value;
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => currentQ && updateAnswer(currentQ.id, option.value)}
-                          className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
-                            isSelected
-                              ? "border-lime-300 bg-lime-300/20"
-                              : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => currentQ && updateAnswer(currentQ.id, option.value)}
+                            className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
+                              isSelected
+                                ? "border-lime-300 bg-lime-300/20"
+                                : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Open Response Box for Base Questions */}
-                  {geminiQuestions.length === 0 && (
+                  {geminiQuestions.length === 0 && !currentQuestion?.slider && (
                     <div className="mt-4 space-y-2 rounded-lg border border-emerald-800 bg-emerald-900/40 p-3">
                       <label htmlFor={`open-response-${currentQuestion?.id}`} className="block text-xs font-semibold uppercase tracking-wide text-emerald-300">
-                        Additional thoughts
+                        Write your response here (at least 19 characters)
                       </label>
                       <textarea
                         id={`open-response-${currentQuestion?.id}`}
@@ -1001,10 +1028,11 @@ export default function StuckApp() {
                       disabled={
                         loading ||
                         (geminiQuestions.length === 0
-                          ? (openResponses[currentQuestion?.id] || "").length < 19
+                          ? currentQuestion?.kind === "slider"
+                            ? answers[currentQuestion.id] === undefined
+                            : (openResponses[currentQuestion?.id] || "").length < 19
                           : !geminiQuestions[currentGeminiIndex] ||
-                            answers[geminiQuestions[currentGeminiIndex].id] ===
-                              undefined)
+                            answers[geminiQuestions[currentGeminiIndex].id] === undefined)
                       }
                       className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
                     >

@@ -1,6 +1,6 @@
 # Mobile App Performance Optimization Tips
 
-## ✅ Applied Optimizations
+##  Applied Optimizations
 
 ### 1. React Performance
 - **Memoization**: Added `useCallback` and `useMemo` hooks
@@ -17,7 +17,7 @@
 ### 4. Bundle Optimization
 - **Asset Bundling**: Optimized asset loading patterns
 
-## 🚀 Additional Performance Tips
+##  Additional Performance Tips
 
 ### For Development
 ```bash
@@ -50,7 +50,7 @@ npx expo-optimize
 - Restart phone if slow
 - Check available storage
 
-## 🔍 Debugging Slow Performance
+##  Debugging Slow Performance
 
 ### Common Issues
 1. **Large bundle size** - Check with `npx expo start --web`
@@ -67,7 +67,7 @@ npx expo start --tunnel
 # In Expo Go app: Shake device → Dev Menu → Performance Monitor
 ```
 
-## 📱 Testing Performance
+##  Testing Performance
 
 ### On Device
 1. Open Expo Go app
@@ -81,7 +81,7 @@ npx expo start --tunnel
 - **CPU**: Should spike briefly then settle
 - **Network**: Check API response times
 
-## ⚡ Quick Fixes for Slow Loading
+##  Quick Fixes for Slow Loading
 
 1. **Restart Expo Go app**
 2. **Clear app cache** in phone settings
@@ -89,7 +89,7 @@ npx expo start --tunnel
 4. **Close background apps**
 5. **Restart phone** if very slow
 
-## 🎯 Target Performance Goals
+##  Target Performance Goals
 - **App startup**: < 3 seconds
 - **Message send**: < 2 seconds
 - **Scroll FPS**: 60fps

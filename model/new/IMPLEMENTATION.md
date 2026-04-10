@@ -1,10 +1,10 @@
 # Model Implementation Summary
 
-## ✅ Completed Implementation
+##  Completed Implementation
 
 All files for the hybrid embedding + Gemini diagnostic model have been created.
 
-## 📁 File Structure
+##  File Structure
 
 ### Core Files Created
 
@@ -56,7 +56,7 @@ All files for the hybrid embedding + Gemini diagnostic model have been created.
    - All types, functions, and constants exported
    - Single import point for the model package
 
-## 🔄 Data Pipeline
+##  Data Pipeline
 
 ```
 Student Input
@@ -74,7 +74,7 @@ Student Input
 Result: DiagnosisResult + InterventionPlan
 ```
 
-## 📦 Dependencies Installed
+##  Dependencies Installed
 
 ```json
 {
@@ -84,7 +84,7 @@ Result: DiagnosisResult + InterventionPlan
 }
 ```
 
-## 🔑 Key Features
+##  Key Features
 
 ### Word Embedding Model
 - **Type**: Universal Sentence Encoder (pre-trained)
@@ -118,7 +118,7 @@ All scoring parameters in `weights.ts`:
 - Audit trail (version control changes)
 - Research-backed thresholds
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```typescript
 import {
@@ -150,7 +150,7 @@ if (flags.includes("crisis:critical")) {
 }
 ```
 
-## ⚙️ Configuration
+## ️ Configuration
 
 ### Environment Variables
 ```bash
@@ -165,7 +165,7 @@ See `weights.ts`:
 - `CRISIS_WEIGHTS.shameThreshold` - When to flag for support
 - `INTERVENTION_WEIGHTS.timingByType` - Suggested duration per type
 
-## ✨ Advanced Features
+##  Advanced Features
 
 ### Transparency
 - `getEmbeddingSimilarityBreakdown()` - Show student how diagnosis was made
@@ -182,7 +182,7 @@ See `weights.ts`:
 - Easy to add new distortions (update `DISTORTION_WEIGHTS`)
 - Easy to tune (edit `weights.ts`)
 
-## 📋 Next Steps (Optional)
+##  Next Steps (Optional)
 
 1. **Integration with App**: Wire up `diagnoseWithHybridModel()` to questionnaire UI
 2. **Session Tracking**: Store `SessionRecord` in database
@@ -191,7 +191,7 @@ See `weights.ts`:
 5. **Prompting Iteration**: Refine Gemini prompts based on real student data
 6. **Model Tuning**: Adjust weights based on feedback
 
-## 📝 Notes
+##  Notes
 
 - All functions are fully typed (no `any` types)
 - Error handling with fallbacks in place

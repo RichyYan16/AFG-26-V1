@@ -44,10 +44,10 @@ async function loadModel() {
     try {
       const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
       modelCache = loadedModel as unknown as EmbeddingPipeline;
-      console.log("✅ Sentence-BERT model loaded successfully");
+      console.log(" Sentence-BERT model loaded successfully");
     } catch (error) {
       console.error(
-        `❌ Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
+        ` Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
         error,
       );
       throw error;
@@ -174,10 +174,10 @@ export async function computeEmbeddingVector(
     // Extract embedding vector from result
     const studentVec = Array.from(result.data) as number[];
 
-    console.log(`✅ Computed embedding vector with ${studentVec.length} dimensions`);
+    console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
     return studentVec;
   } catch (e) {
-    console.error(`❌ Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }
@@ -222,11 +222,11 @@ export async function computeEmbeddingScores(
       scores[stuckType] = typeScore / anchorVectors.length;
     }
 
-    console.log(`✅ Computed embedding scores for all stuck types`);
+    console.log(` Computed embedding scores for all stuck types`);
     // Normalize scores
     return normalizeScores(scores);
   } catch (e) {
-    console.error(`❌ Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }

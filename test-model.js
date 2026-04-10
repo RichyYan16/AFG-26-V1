@@ -11,7 +11,7 @@
 
 // Check for environment variable
 if (!process.env.GEMINI_API_KEY) {
-  console.error("\n❌ ERROR: GEMINI_API_KEY not set");
+  console.error("\n ERROR: GEMINI_API_KEY not set");
   console.error("\nTo run this model, you need to:");
   console.error("1. Get an API key from https://ai.google.dev/");
   console.error("2. Set it as an environment variable:");
@@ -25,14 +25,14 @@ async function main() {
   try {
     // Import the model functions
     const modelPath = './model/new/index.js';
-    console.log("🔄 Loading model from:", modelPath);
-    console.log("⚠️  Note: Model files are TypeScript. You'll need to either:");
+    console.log(" Loading model from:", modelPath);
+    console.log("️  Note: Model files are TypeScript. You'll need to either:");
     console.log("   1. Compile with: npx tsc model/new/*.ts --target es2020 --module commonjs");
     console.log("   2. Or use ts-node: npx ts-node test-model.ts");
     console.log("   3. Or use with Next.js API routes (included in USAGE.md)\n");
 
     // For now, show what a test would look like
-    console.log("📋 Example Test Cases:\n");
+    console.log(" Example Test Cases:\n");
 
     const testCases = [
       {
@@ -68,7 +68,7 @@ async function main() {
     ];
 
     for (const testCase of testCases) {
-      console.log(`✨ ${testCase.name}`);
+      console.log(` ${testCase.name}`);
       console.log("─".repeat(60));
       console.log("Input answers:");
       Object.entries(testCase.answers).forEach(([key, value]) => {
@@ -84,7 +84,7 @@ async function main() {
       console.log("\n");
     }
 
-    console.log("🚀 To actually run the model:\n");
+    console.log(" To actually run the model:\n");
     console.log("Option 1: TypeScript with ts-node");
     console.log("─".repeat(60));
     console.log("npx ts-node test-model.ts\n");
@@ -102,13 +102,13 @@ async function main() {
     console.log("─".repeat(60));
     console.log("See USAGE.md for React component example\n");
 
-    console.log("✅ Model files are ready in: ./model/new/");
-    console.log("📚 Documentation: ./model/new/README.md");
-    console.log("🔧 API Reference: ./model/new/API.md");
-    console.log("📖 Usage Examples: ./model/new/USAGE.md\n");
+    console.log(" Model files are ready in: ./model/new/");
+    console.log(" Documentation: ./model/new/README.md");
+    console.log(" API Reference: ./model/new/API.md");
+    console.log(" Usage Examples: ./model/new/USAGE.md\n");
 
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    console.error(" Error:", error.message);
     process.exit(1);
   }
 }

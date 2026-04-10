@@ -8,7 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 
-console.log("🔧 Generating logistic regression weights...\n");
+console.log(" Generating logistic regression weights...\n");
 
 // Generate random weights for each stuck type (6 types × 512 dimensions)
 function generateWeights() {
@@ -44,8 +44,8 @@ const weights = generateWeights();
 const biases = generateBiases();
 
 // Verify dimensions
-console.log(`✅ Generated weights: [${weights.length}, ${weights[0].length}]`);
-console.log(`✅ Generated biases: [${biases.length}]`);
+console.log(` Generated weights: [${weights.length}, ${weights[0].length}]`);
+console.log(` Generated biases: [${biases.length}]`);
 
 // Create the weights object
 const weightsData = {
@@ -76,6 +76,6 @@ const weightsData = {
 const outputPath = path.join(__dirname, "public", "logisticRegressionWeights.json");
 fs.writeFileSync(outputPath, JSON.stringify(weightsData, null, 2));
 
-console.log(`\n📁 Saved to: ${outputPath}`);
-console.log(`📊 File size: ${(fs.statSync(outputPath).size / 1024).toFixed(1)}KB`);
-console.log("\n✨ Weights generated successfully!\n");
+console.log(`\n Saved to: ${outputPath}`);
+console.log(` File size: ${(fs.statSync(outputPath).size / 1024).toFixed(1)}KB`);
+console.log("\n Weights generated successfully!\n");

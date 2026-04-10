@@ -1,4 +1,4 @@
-# 🚀 How to Run the Model
+#  How to Run the Model
 
 Your model is **100% ready to run**. Here are the 3 easiest ways to test it:
 
@@ -166,27 +166,27 @@ npm install @tensorflow/tfjs @tensorflow-models/universal-sentence-encoder @goog
 
 The model test verifies:
 
-✅ **Embedding Pipeline**
+ **Embedding Pipeline**
 - Loads Universal Sentence Encoder (512-dim)
 - Computes embedding vector for input
 - Compares to stuck-type anchor statements
 
-✅ **Gemini Integration**
+ **Gemini Integration**
 - Connects to Google Generative AI
 - Generates 5 internal follow-up questions
 - Refines diagnosis with LLM
 
-✅ **Score Blending**
+ **Score Blending**
 - Combines embedding scores (50%)
 - Combines Gemini scores (50%)
 - Ranks all 6 stuck types HIGH→LOW
 
-✅ **Cognitive Analysis**
+ **Cognitive Analysis**
 - Detects thought distortions
 - Identifies safety flags
 - Generates risk levels
 
-✅ **Intervention Planning**
+ **Intervention Planning**
 - Creates multiple plan options
 - Generates personalized steps
 - Provides timing estimates

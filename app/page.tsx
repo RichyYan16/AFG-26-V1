@@ -2,10 +2,6 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import AuthForm from "@/components/AuthForm";
-import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, User } from "lucide-react";
 import { sendMessageToAPI, type ChatMessage } from "@/app/services/api";
 import type {
   AdaptiveQuestion,
@@ -124,7 +120,6 @@ async function requestDiagnosis(
 }
 
 export default function StuckApp() {
-  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [answers, setAnswers] = useState<Partial<DiagnosticAnswers>>({});
   const [openResponses, setOpenResponses] = useState<Record<string, string>>({});
@@ -151,8 +146,6 @@ export default function StuckApp() {
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [historyHydrated, setHistoryHydrated] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [geminiQuestions, setGeminiQuestions] = useState<AdaptiveQuestion[]>([]);
   const [currentGeminiIndex, setCurrentGeminiIndex] = useState(0);
   const [wordEmbeddingResults, setWordEmbeddingResults] = useState<Record<string, number>>({});
@@ -182,17 +175,12 @@ export default function StuckApp() {
   );
 
   useEffect(() => {
-    if (user) {
-      loadUserHistory(user.uid).then((userHistory) => {
-        setHistory(userHistory);
-        setHistoryHydrated(true);
-      });
-    } else {
-      // Set history as empty for non-authenticated users
-      setHistory([]);
+    // Load history from local storage for all users
+    loadUserHistory("anonymous").then((userHistory) => {
+      setHistory(userHistory);
       setHistoryHydrated(true);
-    }
-  }, [user]);
+    });
+  }, []);
 
   useEffect(() => {
     if (!timerRunning) {
@@ -629,7 +617,7 @@ export default function StuckApp() {
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `session-${Date.now()}`,
-      userId: user?.uid || "anonymous",
+      userId: "anonymous",
       timestamp: now,
       stuckType: diagnosis.primaryType,
       diagnosis,
@@ -641,11 +629,9 @@ export default function StuckApp() {
     };
 
     try {
-      // Save to local storage instead of Firebase
-      if (user) {
-        const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-      }
+      // Save to local storage for all users
+      const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
       
       const updatedHistory = [sessionRecord, ...history].slice(0, MAX_HISTORY);
       setHistory(updatedHistory);
@@ -656,7 +642,7 @@ export default function StuckApp() {
         setProfile(refreshed.profile);
       }
       setNotice(
-        `Session saved as "${OUTCOME_LABELS[selectedOutcome]}". ${user ? 'Saved to your account.' : 'Sign in to save your sessions permanently.'}`,
+        `Session saved as "${OUTCOME_LABELS[selectedOutcome]}".`,
       );
     } catch (error) {
       console.error("Error saving session:", error);
@@ -717,45 +703,6 @@ export default function StuckApp() {
                   App for academic paralysis.
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {user ? (
-                <>
-                  <div className="flex items-center gap-2 text-sm text-emerald-200">
-                    <User className="h-4 w-4" />
-                    <span>{user.email}</span>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="flex items-center gap-2 rounded-lg border border-rose-700 px-3 py-2 text-sm text-rose-200 hover:border-rose-500 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      setAuthMode('signin');
-                      setShowAuthModal(true);
-                    }}
-                    className="flex items-center gap-2 rounded-lg border border-lime-700 px-3 py-2 text-sm text-lime-200 hover:border-lime-500 transition-colors"
-                  >
-                    <User className="h-4 w-4" />
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAuthMode('signup');
-                      setShowAuthModal(true);
-                    }}
-                    className="flex items-center gap-2 rounded-lg bg-lime-300 px-3 py-2 text-sm text-emerald-950 hover:bg-lime-200 transition-colors"
-                  >
-                    Sign Up
-                  </button>
-                </>
-              )}
             </div>
           </div>
         </header>
@@ -1351,17 +1298,6 @@ export default function StuckApp() {
         </section>
       </div>
 
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-md">
-            <AuthForm 
-              onClose={() => setShowAuthModal(false)} 
-              initialMode={authMode}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
   );
 }

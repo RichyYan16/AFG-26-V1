@@ -10,8 +10,8 @@ import {
   buildMultipleInterventionPlans,
   detectThoughtDistortions,
   buildSafetyFlags,
-} from "./model/new/index";
-import type { DiagnosticAnswers } from "./model/new/types";
+} from "../model/new/index";
+import type { DiagnosticAnswers } from "../model/new/types";
 
 // Check for environment variable
 if (!process.env.GEMINI_API_KEY) {

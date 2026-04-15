@@ -29,7 +29,7 @@ An app to help students overcome academic paralysis and approach school with con
 ```bash
 git clone https://github.com/Abhi52897340598327/AFG-26-V1.git
 cd AFG-26-V1
-npm install
+npm install --legacy-peer-deps
 ```
 
 ## Run the App

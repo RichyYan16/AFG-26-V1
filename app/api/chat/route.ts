@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -25,6 +25,14 @@ interface GeminiResponse {
   candidates?: Array<{
     content?: {
       parts?: Array<{ text?: string }>;
+    };
+  }>;
+}
+
+interface GroqContent {
+  choices?: Array<{
+    message?: {
+      content?: string;
     };
   }>;
 }

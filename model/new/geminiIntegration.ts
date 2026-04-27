@@ -61,57 +61,75 @@ export async function refineDiagnosisWithGemini(
   answers: DiagnosticAnswers,
   embeddingScores: Record<StuckType, number>,
 ): Promise<DiagnosisFromGemini> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: INTERVENTION_WEIGHTS.geminiModel,
-    });
+  const maxRetries = 3;
+  const baseDelay = 1000;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: INTERVENTION_WEIGHTS.geminiModel,
+      });
 
-    const prompt = generateDiagnosisPrompt(answers, embeddingScores);
+      const prompt = generateDiagnosisPrompt(answers, embeddingScores);
 
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      systemInstruction: SYSTEM_PROMPTS.diagnosis,
-    });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }],
+          },
+        ],
+        systemInstruction: SYSTEM_PROMPTS.diagnosis,
+      });
 
-    const responseText =
-      result.response.candidates?.[0]?.content.parts[0]?.text || "{}";
+      const responseText =
+        result.response.candidates?.[0]?.content.parts[0]?.text || "{}";
 
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch
-      ? JSON.parse(jsonMatch[0])
-      : {
-          primaryType: "overwhelm",
-          confidence: 0.5,
-          factors: ["Unable to parse response"],
-          summary: "Error parsing Gemini response",
-        };
+      // Parse JSON response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const parsed = jsonMatch
+        ? JSON.parse(jsonMatch[0])
+        : {
+            primaryType: "overwhelm",
+            confidence: 0.5,
+            factors: ["Unable to parse response"],
+            summary: "Error parsing Gemini response",
+          };
 
-    return {
-      primaryType: parsed.primaryType as StuckType,
-      confidence: parsed.confidence as number,
-      factors: (parsed.factors as string[]) || [],
-      summary: (parsed.summary as string) || "",
-    };
-  } catch (error) {
-    console.error("Error refining diagnosis with Gemini:", error);
-    // Fallback to embedding-based diagnosis
-    const topType = Object.entries(embeddingScores).sort(
-      (a, b) => b[1] - a[1],
-    )[0];
-    return {
-      primaryType: topType[0] as StuckType,
-      confidence: topType[1],
-      factors: ["Fallback diagnosis due to API error"],
-      summary:
-        "Unable to refine with AI; using embedding analysis. Please try again.",
-    };
+      return {
+        primaryType: parsed.primaryType as StuckType,
+        confidence: parsed.confidence as number,
+        factors: (parsed.factors as string[]) || [],
+        summary: (parsed.summary as string) || "",
+      };
+    } catch (error) {
+      console.error(`Error refining diagnosis with Gemini (attempt ${attempt}/${maxRetries}):`, error);
+      
+      // Check if it's a 503 error and we should retry
+      if (error instanceof Error && error.message.includes('503') && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.warn(`Gemini 503 error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If this is the last attempt or a different error, use fallback
+      break;
+    }
   }
+  
+  // Fallback to embedding-based diagnosis
+  console.warn('Using fallback diagnosis due to Gemini API failures');
+  const topType = Object.entries(embeddingScores).sort(
+    (a, b) => b[1] - a[1],
+  )[0];
+  return {
+    primaryType: topType[0] as StuckType,
+    confidence: topType[1],
+    factors: ["Fallback diagnosis due to API error"],
+    summary:
+      "Unable to refine with AI; using embedding analysis. Please try again.",
+  };
 }
 
 /**
@@ -187,56 +205,75 @@ export async function generateInterventionPlan(
     previousAttempts: number;
   },
 ): Promise<InterventionPlan> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: INTERVENTION_WEIGHTS.geminiModel,
-    });
+  const maxRetries = 3;
+  const baseDelay = 1000;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: INTERVENTION_WEIGHTS.geminiModel,
+      });
 
-    const prompt = generateInterventionPrompt(stuckType, context);
+      const prompt = generateInterventionPrompt(stuckType, context);
 
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      systemInstruction: SYSTEM_PROMPTS.intervention,
-    });
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }],
+          },
+        ],
+        systemInstruction: SYSTEM_PROMPTS.intervention,
+      });
 
-    const responseText =
-      result.response.candidates?.[0]?.content.parts[0]?.text || "{}";
+      const responseText =
+        result.response.candidates?.[0]?.content.parts[0]?.text || "{}";
 
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const parsed: ParsedInterventionPayload = jsonMatch
-      ? (JSON.parse(jsonMatch[0]) as ParsedInterventionPayload)
-      : getFallbackIntervention(stuckType);
+      // Parse JSON response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const parsed: ParsedInterventionPayload = jsonMatch
+        ? (JSON.parse(jsonMatch[0]) as ParsedInterventionPayload)
+        : getFallbackIntervention(stuckType);
 
-    const steps = parsed.steps || [];
-    const estimatedTotal = steps.reduce(
-      (sum: number, step) => sum + (step.timeMinutes || 5),
-      0,
-    );
+      const steps = parsed.steps || [];
+      const estimatedTotal = steps.reduce(
+        (sum: number, step) => sum + (step.timeMinutes || 5),
+        0,
+      );
 
-    return {
-      stuckType,
-      headline: parsed.headline || "Take a small step",
-      whyItWorks: parsed.whyItWorks || "Every small action builds momentum.",
-      steps: steps.map((step) => ({
-        timeMinutes: step.timeMinutes || 5,
-        action: step.action || "Continue with next step",
-        tip: step.tip || undefined,
-      })),
-      reflectionPrompt:
-        parsed.reflectionPrompt ||
-        "How are you feeling now compared to before?",
-      estimatedTotalMinutes: estimatedTotal || 15,
-    };
-  } catch (error) {
-    console.error("Error generating intervention plan:", error);
-    return getFallbackIntervention(stuckType);
+      return {
+        stuckType,
+        headline: parsed.headline || "Take a small step",
+        whyItWorks: parsed.whyItWorks || "Every small action builds momentum.",
+        steps: steps.map((step) => ({
+          timeMinutes: step.timeMinutes || 5,
+          action: step.action || "Continue with next step",
+          tip: step.tip || undefined,
+        })),
+        reflectionPrompt:
+          parsed.reflectionPrompt ||
+          "How are you feeling now compared to before?",
+        estimatedTotalMinutes: estimatedTotal || 15,
+      };
+    } catch (error) {
+      console.error(`Error generating intervention plan (attempt ${attempt}/${maxRetries}):`, error);
+      
+      // Check if it's a 503 error and we should retry
+      if (error instanceof Error && error.message.includes('503') && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.warn(`Gemini 503 error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If this is the last attempt or a different error, use fallback
+      break;
+    }
   }
+  
+  // Fallback intervention if Gemini fails
+  console.warn('Using fallback intervention plan due to Gemini API failures');
+  return getFallbackIntervention(stuckType);
 }
 
 /**

@@ -30,11 +30,7 @@ export function formatTimer(totalSeconds: number): string {
     .padStart(2, "0")}`;
 }
 
-export async function loadUserHistory(userId: string): Promise<SessionRecord[]> {
-  if (!userId) {
-    return [];
-  }
-
+export async function loadUserHistory(userId?: string): Promise<SessionRecord[]> {
   try {
     // Load from local storage instead of Firebase
     const stored = localStorage.getItem(STORAGE_KEY);

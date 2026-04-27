@@ -17,7 +17,6 @@ interface QuestionnaireTabProps {
   onHandlePreviousQuestion: () => void;
   onResetToHome: () => void;
   onBeginDiagnosis: () => void;
-  onSetCurrentQuestionIndex: (index: number) => void;
 }
 
 export function QuestionnaireTab({
@@ -36,7 +35,6 @@ export function QuestionnaireTab({
   onHandlePreviousQuestion,
   onResetToHome,
   onBeginDiagnosis,
-  onSetCurrentQuestionIndex,
 }: QuestionnaireTabProps) {
   const currentQuestion = questionQueue[currentQuestionIndex] ?? null;
   const activeQuestion = geminiQuestions.length > 0
@@ -203,35 +201,6 @@ export function QuestionnaireTab({
           </button>
         </div>
       )}
-
-      <div className="grid gap-2 rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-        <p className="text-xs uppercase tracking-wide text-emerald-300">
-          Question Navigator
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {questionQueue.map((question, index) => {
-            const answered = answers[question.id] !== undefined;
-            const selected = index === currentQuestionIndex;
-
-            return (
-              <button
-                key={question.id}
-                type="button"
-                onClick={() => onSetCurrentQuestionIndex(index)}
-                className={`rounded-md border px-3 py-1.5 text-xs ${
-                  selected
-                    ? "border-lime-300 bg-lime-300/20"
-                    : answered
-                      ? "border-lime-500 bg-lime-900/20"
-                      : "border-emerald-800 hover:border-lime-500"
-                }`}
-              >
-                {index + 1}. {QUESTION_TITLES[question.id]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

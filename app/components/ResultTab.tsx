@@ -58,16 +58,6 @@ export function ResultTab({ diagnosis, loadingInterventions, onGenerateIntervent
                 {diagnosis.summary}
               </p>
             </div>
-            
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={onNavigateToIntervention}
-                className="rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-lime-200 transition-colors"
-              >
-                Do you want to change this?
-              </button>
-            </div>
           </div>
           
           <div className="text-center">

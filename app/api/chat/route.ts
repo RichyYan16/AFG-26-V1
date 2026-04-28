@@ -105,40 +105,81 @@ export async function POST(req: Request) {
       },
     };
 
-    const upstream = await fetch(
-      `${GEMINI_API_URL}?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      },
+    // Add retry logic for 503 errors at the API route level
+    const maxRetries = 3;
+    const baseDelay = 1000;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const upstream = await fetch(
+          `${GEMINI_API_URL}?key=${process.env.GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          },
+        );
+
+        if (!upstream.ok) {
+          const details = await upstream.text();
+          
+          // Handle 503 Service Unavailable with retry logic
+          if (upstream.status === 503 && attempt < maxRetries) {
+            const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+            console.warn(`Gemini API 503 error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          return NextResponse.json(
+            {
+              error: "Gemini API request failed",
+              upstreamStatus: upstream.status,
+              details,
+            },
+            { status: upstream.status },
+          );
+        }
+
+        const data = (await upstream.json()) as GeminiResponse;
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!text) {
+          return NextResponse.json(
+            { error: "No response from Gemini API" },
+            { status: 502 },
+          );
+        }
+
+        return NextResponse.json({ text }, { status: 200 });
+      } catch (error) {
+        console.error(`Gemini API error (attempt ${attempt}/${maxRetries}):`, error);
+        
+        // If this is the last attempt, return error response
+        if (attempt === maxRetries) {
+          return NextResponse.json(
+            {
+              error: "Gemini API request failed after retries",
+              message: error instanceof Error ? error.message : String(error),
+            },
+            { status: 503 },
+          );
+        }
+        
+        // For network errors or other issues, also retry with exponential backoff
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.warn(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    // This should never be reached, but TypeScript needs it
+    return NextResponse.json(
+      { error: "Max retries exceeded" },
+      { status: 503 },
     );
-
-    if (!upstream.ok) {
-      const details = await upstream.text();
-      return NextResponse.json(
-        {
-          error: "Gemini API request failed",
-          upstreamStatus: upstream.status,
-          details,
-        },
-        { status: upstream.status },
-      );
-    }
-
-    const data = (await upstream.json()) as GeminiResponse;
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      return NextResponse.json(
-        { error: "No response from Gemini API" },
-        { status: 502 },
-      );
-    }
-
-    return NextResponse.json({ text }, { status: 200 });
   } catch (error) {
     return NextResponse.json(
       {

@@ -15,13 +15,14 @@ import type {
 import { AppTab, STORAGE_KEY, MAX_HISTORY, OUTCOME_LABELS } from "./constants";
 import {
   asCompleteAnswers,
-  formatTimer,
   requestDiagnosis,
 } from "./utils";
 import {
   generateGeminiQuestions,
   generateInterventionPlans,
 } from "./services/diagnosis";
+import { handleAsyncError, ERROR_MESSAGES } from "./utils/errorHandling";
+import { initializeCache, cacheQuestionnaire, getCachedQuestionnaire } from "./utils/cache";
 import { useTimer } from "./hooks/useTimer";
 import { useHistory } from "./hooks/useHistory";
 
@@ -61,10 +62,18 @@ export default function StuckApp() {
   const [notice, setNotice] = useState("");
   const [geminiQuestions, setGeminiQuestions] = useState<AdaptiveQuestion[]>([]);
   const [currentGeminiIndex, setCurrentGeminiIndex] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [processComplete, setProcessComplete] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
 
   const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
   const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
+
+  // Initialize cache on app start
+  useEffect(() => {
+    initializeCache();
+  }, []);
 
   const currentQuestion = questionQueue[currentQuestionIndex] ?? null;
 
@@ -115,7 +124,8 @@ export default function StuckApp() {
 
   async function beginDiagnosis(): Promise<void> {
     setErrorMessage("");
-    setNotice("");
+    setRetryCount(0);
+    setSessionStartTime(Date.now());
     setLoading(true);
     setAnswers({});
     setOpenResponses({});
@@ -125,6 +135,9 @@ export default function StuckApp() {
     setCurrentGeminiIndex(0);
     setProcessComplete(false);
     resetResultState();
+
+    const sessionId = crypto.randomUUID();
+    cacheQuestionnaire(sessionId, {}); // Initialize empty questionnaire cache
 
     setShowIntroduction(true);
     setActiveTab("introduction");
@@ -145,20 +158,41 @@ export default function StuckApp() {
 
       applyDiagnosisResponse(response);
       setActiveTab("result");
-    } catch {
-      setErrorMessage("Could not start diagnosis. Please try again.");
+    } catch (error) {
+      const errorMessage = await handleAsyncError(
+        () => requestDiagnosis({}, history),
+        { customMessage: ERROR_MESSAGES.diagnosis.start }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.diagnosis.start);
     } finally {
       setLoading(false);
     }
   }
 
-  function updateAnswer(questionId: AdaptiveQuestion["id"], value: string): void {
+  function updateAnswer(questionId: "internalVoice" | "eightyPercentThought" | "whyBestWork" | "avoidanceDuration" | "helpSeeking", value: string): void {
     setErrorMessage("");
-    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+    setAnswers((previous) => {
+      const updatedAnswers = { ...previous, [questionId]: value };
+      // Cache the updated answers
+      const sessionId = 'current_session'; // Use a fixed key for current session
+      cacheQuestionnaire(sessionId, updatedAnswers);
+      return updatedAnswers;
+    });
   }
 
   function updateOpenResponse(questionId: string, value: string): void {
-    setOpenResponses((previous) => ({ ...previous, [questionId]: value }));
+    setErrorMessage("");
+    setOpenResponses((previous) => {
+      const updatedResponses = { ...previous, [questionId]: value };
+      // Cache the updated responses
+      const sessionId = 'current_session';
+      const currentAnswers = getLatestDiagnosticAnswers({
+        ...answers,
+        ...(currentQuestion?.kind === "slider" ? {} : { [currentQuestion.id]: value.trim() }),
+      });
+      cacheQuestionnaire(sessionId, currentAnswers);
+      return updatedResponses;
+    });
   }
 
   function getLatestDiagnosticAnswers(
@@ -252,8 +286,22 @@ export default function StuckApp() {
         setCurrentGeminiIndex(0);
         setLoading(false);
         return;
-      } catch {
-        setErrorMessage("Could not generate follow-up questions. Please try again.");
+      } catch (error) {
+        const result = await handleAsyncError(
+          () => generateGeminiQuestions(latestDiagnosticAnswers),
+          { customMessage: ERROR_MESSAGES.diagnosis.generate }
+        );
+        
+        if (!result.success) {
+          setErrorMessage(result.error || ERROR_MESSAGES.diagnosis.generate);
+          setLoading(false);
+          return;
+        }
+        
+        // If we got here, the async function succeeded
+        const generatedQuestions = result.data!;
+        setGeminiQuestions(generatedQuestions);
+        setCurrentGeminiIndex(0);
         setLoading(false);
         return;
       }
@@ -294,8 +342,12 @@ export default function StuckApp() {
 
       applyDiagnosisResponse(response);
       setActiveTab("result");
-    } catch {
-      setErrorMessage("Could not process this answer. Please try again.");
+    } catch (error) {
+      const errorMessage = await handleAsyncError(
+        () => requestDiagnosis(getLatestDiagnosticAnswers(), history),
+        { customMessage: ERROR_MESSAGES.diagnosis.process }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.diagnosis.process);
     } finally {
       setLoading(false);
     }
@@ -333,8 +385,21 @@ export default function StuckApp() {
       setProcessComplete(true);
       setActiveTab("intervention");
     } catch (error) {
-      console.error('Error generating intervention plans:', error);
-      setErrorMessage("Failed to generate intervention plans. Please try again.");
+      const result = await handleAsyncError(
+        () => generateInterventionPlans(diagnosis),
+        { customMessage: ERROR_MESSAGES.intervention.generate }
+      );
+      
+      if (!result.success) {
+        setErrorMessage(result.error || ERROR_MESSAGES.intervention.generate);
+        return;
+      }
+      
+      // If we got here, the async function succeeded
+      const plans = result.data!;
+      setInterventionPlans(plans);
+      setProcessComplete(true);
+      setActiveTab("intervention");
     } finally {
       setLoadingInterventions(false);
     }
@@ -358,27 +423,22 @@ export default function StuckApp() {
         : `${plan.stuckType}:initial`;
 
     const sessionRecord: SessionRecord = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `session-${Date.now()}`,
-      userId: "anonymous",
+      id: crypto.randomUUID(),
+      userId: "user", // TODO: Get actual user ID
       timestamp: now,
       stuckType: diagnosis.primaryType,
-      diagnosis,
+      diagnosis: diagnosis,
       interventionPlan: plan,
       outcome: selectedOutcome,
-      durationMinutes: 0,
-      distortions: [],
-      safetyFlags: [],
+      durationMinutes: Math.floor((Date.now() - sessionStartTime) / 60000),
+      distortions: [], // TODO: Calculate distortions
+      safetyFlags: [], // TODO: Check for safety flags
     };
 
-    try {
-      const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-      
-      const updatedHistory = addToHistory(sessionRecord);
+    const updatedHistory = [...history, sessionRecord];
+    await addToHistory(sessionRecord);
 
+    try {
       const refreshed = await requestDiagnosis(completeAnswers, updatedHistory);
       if (refreshed.status === "diagnosed") {
         setInsights(refreshed.insights);
@@ -388,8 +448,11 @@ export default function StuckApp() {
         `Session saved as "${OUTCOME_LABELS[selectedOutcome]}".`,
       );
     } catch (error) {
-      console.error("Error saving session:", error);
-      setErrorMessage("Failed to save session. Please try again.");
+      const errorMessage = await handleAsyncError(
+        () => requestDiagnosis(completeAnswers, updatedHistory),
+        { customMessage: ERROR_MESSAGES.session.save }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.session.save);
     } finally {
       setSaving(false);
     }
@@ -415,8 +478,11 @@ export default function StuckApp() {
       await clearHistoryHook();
       setNotice("History cleared.");
     } catch (error) {
-      console.error("Error clearing history:", error);
-      setErrorMessage("Failed to clear history. Please try again.");
+      const errorMessage = await handleAsyncError(
+        () => clearHistoryHook(),
+        { customMessage: "Failed to clear history. Please try again." }
+      );
+      setErrorMessage(errorMessage.error || "Failed to clear history. Please try again.");
     }
   }
 
@@ -464,7 +530,6 @@ export default function StuckApp() {
               onHandlePreviousQuestion={handlePreviousQuestion}
               onResetToHome={resetToHome}
               onBeginDiagnosis={beginDiagnosis}
-              onSetCurrentQuestionIndex={setCurrentQuestionIndex}
             />
           )}
 

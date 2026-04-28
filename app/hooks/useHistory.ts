@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadUserHistory } from "../utils";
+import { STORAGE_KEY } from "../constants";
 import type { SessionRecord } from "@/model/new/types";
 
 export function useHistory() {
@@ -7,8 +8,8 @@ export function useHistory() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    // Load history from local storage for all users
-    loadUserHistory("anonymous").then((userHistory) => {
+    // Load history from local storage
+    loadUserHistory().then((userHistory) => {
       setHistory(userHistory);
       setHydrated(true);
     });
@@ -17,7 +18,7 @@ export function useHistory() {
   const clearHistory = async (): Promise<void> => {
     try {
       // Clear from local storage instead of Firebase
-      localStorage.removeItem("stuck_sessions_v1");
+      localStorage.removeItem(STORAGE_KEY);
       setHistory([]);
     } catch (error) {
       console.error("Error clearing history:", error);
@@ -25,9 +26,18 @@ export function useHistory() {
     }
   };
 
+  const saveHistory = (updatedHistory: SessionRecord[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error("Error saving history to localStorage:", error);
+    }
+  };
+
   const addToHistory = (newSession: SessionRecord) => {
     const updatedHistory = [newSession, ...history].slice(0, 300);
     setHistory(updatedHistory);
+    saveHistory(updatedHistory);
     return updatedHistory;
   };
 
@@ -36,5 +46,6 @@ export function useHistory() {
     hydrated,
     clearHistory,
     addToHistory,
+    saveHistory,
   };
 }

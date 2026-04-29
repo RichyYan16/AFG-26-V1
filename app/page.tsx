@@ -15,7 +15,7 @@ import type {
 import { AppTab, STORAGE_KEY, MAX_HISTORY, OUTCOME_LABELS } from "./constants";
 import {
   asCompleteAnswers,
-  requestDiagnosis,
+  requestAssessment,
 } from "./utils";
 import {
   generateGeminiQuestions,
@@ -43,9 +43,9 @@ export default function StuckApp() {
   const [openResponses, setOpenResponses] = useState<Record<string, string>>({});
   const [questionQueue, setQuestionQueue] = useState<AdaptiveQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
+  const [assessment, setAssessment] = useState<DiagnosisResult | null>(null);
   const [plan, setPlan] = useState<InterventionPlan | null>(null);
-  const [interventionPlans, setInterventionPlans] = useState<string[]>([]);
+  const [interventionPlans, setInterventionPlans] = useState<Array<{action: string; resources?: string[]}>>([]);
   const [loadingInterventions, setLoadingInterventions] = useState(false);
   const [showIntroduction, setShowIntroduction] = useState(false);
   const [insights, setInsights] = useState<TrendInsight[]>([]);
@@ -99,7 +99,7 @@ export default function StuckApp() {
   );
 
   function resetResultState(): void {
-    setDiagnosis(null);
+    setAssessment(null);
     setPlan(null);
     setInsights([]);
     setProfile(null);
@@ -109,10 +109,10 @@ export default function StuckApp() {
     stopTimer();
   }
 
-  function applyDiagnosisResponse(
+  function applyAssessmentResponse(
     response: Extract<import("@/model/new/types").DiagnoseResponse, { status: "diagnosed" }>,
   ): void {
-    setDiagnosis(response.diagnosis);
+    setAssessment(response.diagnosis);
     setPlan(response.plan);
     setInsights(response.insights);
     setProfile(response.profile);
@@ -122,7 +122,7 @@ export default function StuckApp() {
     stopTimer();
   }
 
-  async function beginDiagnosis(): Promise<void> {
+  async function beginAssessment(): Promise<void> {
     setErrorMessage("");
     setRetryCount(0);
     setSessionStartTime(Date.now());
@@ -148,7 +148,7 @@ export default function StuckApp() {
     setLoading(true);
     setShowIntroduction(false);
     try {
-      const response = await requestDiagnosis({}, history);
+      const response = await requestAssessment({}, history);
       if (response.status === "needs_more_answers") {
         setQuestionQueue(response.questionQueue);
         setCurrentQuestionIndex(0);
@@ -156,14 +156,14 @@ export default function StuckApp() {
         return;
       }
 
-      applyDiagnosisResponse(response);
+      applyAssessmentResponse(response);
       setActiveTab("result");
     } catch (error) {
       const errorMessage = await handleAsyncError(
-        () => requestDiagnosis({}, history),
-        { customMessage: ERROR_MESSAGES.diagnosis.start }
+        () => requestAssessment({}, history),
+        { customMessage: ERROR_MESSAGES.assessment.start }
       );
-      setErrorMessage(errorMessage.error || ERROR_MESSAGES.diagnosis.start);
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.assessment.start);
     } finally {
       setLoading(false);
     }
@@ -289,11 +289,11 @@ export default function StuckApp() {
       } catch (error) {
         const result = await handleAsyncError(
           () => generateGeminiQuestions(latestDiagnosticAnswers),
-          { customMessage: ERROR_MESSAGES.diagnosis.generate }
+          { customMessage: ERROR_MESSAGES.assessment.generate }
         );
         
         if (!result.success) {
-          setErrorMessage(result.error || ERROR_MESSAGES.diagnosis.generate);
+          setErrorMessage(result.error || ERROR_MESSAGES.assessment.generate);
           setLoading(false);
           return;
         }
@@ -322,7 +322,7 @@ export default function StuckApp() {
     setLoading(true);
     try {
       const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
-      const response = await requestDiagnosis(latestDiagnosticAnswers, history);
+      const response = await requestAssessment(latestDiagnosticAnswers, history);
 
       if (response.status === "needs_more_answers") {
         setQuestionQueue(response.questionQueue);
@@ -340,14 +340,14 @@ export default function StuckApp() {
         return;
       }
 
-      applyDiagnosisResponse(response);
+      applyAssessmentResponse(response);
       setActiveTab("result");
     } catch (error) {
       const errorMessage = await handleAsyncError(
-        () => requestDiagnosis(getLatestDiagnosticAnswers(), history),
-        { customMessage: ERROR_MESSAGES.diagnosis.process }
+        () => requestAssessment(getLatestDiagnosticAnswers(), history),
+        { customMessage: ERROR_MESSAGES.assessment.process }
       );
-      setErrorMessage(errorMessage.error || ERROR_MESSAGES.diagnosis.process);
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.assessment.process);
     } finally {
       setLoading(false);
     }
@@ -376,17 +376,17 @@ export default function StuckApp() {
   }
 
   async function handleGenerateInterventions(): Promise<void> {
-    if (!diagnosis) return;
+    if (!assessment) return;
     
     setLoadingInterventions(true);
     try {
-      const plans = await generateInterventionPlans(diagnosis);
+      const plans = await generateInterventionPlans(assessment);
       setInterventionPlans(plans);
       setProcessComplete(true);
       setActiveTab("intervention");
     } catch (error) {
       const result = await handleAsyncError(
-        () => generateInterventionPlans(diagnosis),
+        () => generateInterventionPlans(assessment),
         { customMessage: ERROR_MESSAGES.intervention.generate }
       );
       
@@ -407,8 +407,8 @@ export default function StuckApp() {
 
   async function saveSession(): Promise<void> {
     const completeAnswers = asCompleteAnswers(getLatestDiagnosticAnswers());
-    if (!diagnosis || !plan || !completeAnswers) {
-      setErrorMessage("Diagnosis is incomplete. Finish diagnosis before saving.");
+    if (!assessment || !plan || !completeAnswers) {
+      setErrorMessage("Assessment is incomplete. Finish assessment before saving.");
       return;
     }
 
@@ -426,8 +426,8 @@ export default function StuckApp() {
       id: crypto.randomUUID(),
       userId: "user", // TODO: Get actual user ID
       timestamp: now,
-      stuckType: diagnosis.primaryType,
-      diagnosis: diagnosis,
+      stuckType: assessment.primaryType,
+      diagnosis: assessment,
       interventionPlan: plan,
       outcome: selectedOutcome,
       durationMinutes: Math.floor((Date.now() - sessionStartTime) / 60000),
@@ -439,17 +439,17 @@ export default function StuckApp() {
     await addToHistory(sessionRecord);
 
     try {
-      const refreshed = await requestDiagnosis(completeAnswers, updatedHistory);
-      if (refreshed.status === "diagnosed") {
-        setInsights(refreshed.insights);
-        setProfile(refreshed.profile);
+      const response = await requestAssessment(completeAnswers, history);
+      if (response.status === "diagnosed") {
+        setInsights(response.insights);
+        setProfile(response.profile);
       }
       setNotice(
         `Session saved as "${OUTCOME_LABELS[selectedOutcome]}".`,
       );
     } catch (error) {
       const errorMessage = await handleAsyncError(
-        () => requestDiagnosis(completeAnswers, updatedHistory),
+        () => requestAssessment(completeAnswers, updatedHistory),
         { customMessage: ERROR_MESSAGES.session.save }
       );
       setErrorMessage(errorMessage.error || ERROR_MESSAGES.session.save);
@@ -502,7 +502,7 @@ export default function StuckApp() {
 
         <section className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-5 md:p-6">
           {activeTab === "home" && (
-            <HomeTab loading={loading} onBeginDiagnosis={beginDiagnosis} />
+            <HomeTab loading={loading} onBeginDiagnosis={beginAssessment} />
           )}
 
           {activeTab === "introduction" && (
@@ -529,13 +529,13 @@ export default function StuckApp() {
               onHandleNextQuestion={handleNextQuestion}
               onHandlePreviousQuestion={handlePreviousQuestion}
               onResetToHome={resetToHome}
-              onBeginDiagnosis={beginDiagnosis}
+              onBeginDiagnosis={beginAssessment}
             />
           )}
 
           {activeTab === "result" && (
             <ResultTab
-              diagnosis={diagnosis}
+              diagnosis={assessment}
               loadingInterventions={loadingInterventions}
               onGenerateInterventions={handleGenerateInterventions}
               onNavigateToIntervention={() => setActiveTab("intervention")}
@@ -549,7 +549,7 @@ export default function StuckApp() {
               saving={saving}
               onSaveSession={saveSession}
               onNavigateToResult={() => setActiveTab("result")}
-              onBeginDiagnosis={beginDiagnosis}
+              onBeginDiagnosis={beginAssessment}
             />
           )}
 
@@ -559,7 +559,7 @@ export default function StuckApp() {
               profile={profile}
               onNavigateToHistory={() => setActiveTab("history")}
               onNavigateToResult={() => setActiveTab("result")}
-              hasDiagnosis={!!diagnosis && !!plan}
+              hasDiagnosis={!!assessment && !!plan}
             />
           )}
 

@@ -18,7 +18,7 @@ export function HomeTab({ loading, onBeginDiagnosis }: HomeTabProps) {
       <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
         <Image
           src="/images/diagnosis-flow.svg"
-          alt="Diagnosis flow diagram"
+          alt="Assessment flow diagram"
           width={920}
           height={220}
           className="h-auto w-full rounded-lg border border-emerald-900"

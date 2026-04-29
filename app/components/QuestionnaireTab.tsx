@@ -190,14 +190,14 @@ export function QuestionnaireTab({
         </div>
       ) : (
         <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 text-sm text-emerald-200">
-          <p>No active diagnosis session yet.</p>
+          <p>No active assessment session yet.</p>
           <button
             type="button"
             onClick={onBeginDiagnosis}
             disabled={loading}
             className="mt-3 rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Starting..." : "Start Diagnosis"}
+            {loading ? "Starting..." : "Start Assessment"}
           </button>
         </div>
       )}

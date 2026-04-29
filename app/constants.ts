@@ -33,6 +33,15 @@ export const STUCK_TYPE_LABELS: Record<StuckType, string> = {
   perfection_loop: "Perfection Loop Stuck",
 };
 
+export const STUCK_TYPE_DESCRIPTIONS: Record<StuckType, string> = {
+  confusion: "You don't understand the material or requirements and feel lost about where to start.",
+  ambiguity: "The instructions or expectations are unclear, leaving you uncertain about what to do.",
+  fear: "You're afraid of failure, judgment, or consequences, which prevents you from beginning.",
+  overwhelm: "The task feels too large or complex, making it hard to know how to approach it.",
+  exhaustion: "You're mentally or physically drained and lack the energy to engage with the work.",
+  perfection_loop: "You're caught in trying to make everything perfect, which prevents you from finishing.",
+};
+
 export const OUTCOME_LABELS: Record<SessionOutcome, string> = {
   started: "Started",
   finished: "Finished",

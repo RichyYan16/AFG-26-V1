@@ -121,8 +121,8 @@ export async function handleAsyncError<T>(
  * Create a user-friendly error message for specific operations
  */
 export const ERROR_MESSAGES = {
-  diagnosis: {
-    start: "Could not start diagnosis. Please try again.",
+  assessment: {
+    start: "Could not start assessment. Please try again.",
     process: "Could not process your response. Please try again.",
     generate: "Could not generate follow-up questions. Please try again.",
   },

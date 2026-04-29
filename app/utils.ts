@@ -41,7 +41,7 @@ export async function loadUserHistory(userId?: string): Promise<SessionRecord[]>
   }
 }
 
-export async function requestDiagnosis(
+export async function requestAssessment(
   answers: Partial<DiagnosticAnswers>,
   history: SessionRecord[],
 ): Promise<DiagnoseResponse> {
@@ -52,7 +52,7 @@ export async function requestDiagnosis(
   });
 
   if (!response.ok) {
-    throw new Error("Diagnosis request failed.");
+    throw new Error("Assessment request failed.");
   }
 
   return (await response.json()) as DiagnoseResponse;

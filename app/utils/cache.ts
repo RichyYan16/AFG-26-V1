@@ -23,7 +23,7 @@ const CACHE_VERSION = '1.0';
 // Cache keys
 export const CACHE_KEYS = {
   INTERVENTION_PLANS: 'intervention_plans',
-  DIAGNOSIS: 'diagnosis',
+  ASSESSMENT: 'assessment',
   QUESTIONNAIRE: 'questionnaire',
   GEMINI_QUESTIONS: 'gemini_questions',
   USER_ANSWERS: 'user_answers',
@@ -214,21 +214,21 @@ export function getCachedInterventionPlans(stuckType: string): string[] | null {
 }
 
 /**
- * Cache diagnosis result
+ * Cache assessment result
  */
-export function cacheDiagnosis(answers: any, diagnosis: any): void {
+export function cacheAssessment(answers: any, assessment: any): void {
   // Create a hash of answers for the key
   const answersHash = btoa(JSON.stringify(answers)).substring(0, 20);
-  const key = `${CACHE_KEYS.DIAGNOSIS}_${answersHash}`;
-  setCacheItem(key, diagnosis);
+  const key = `${CACHE_KEYS.ASSESSMENT}_${answersHash}`;
+  setCacheItem(key, assessment);
 }
 
 /**
- * Get cached diagnosis for specific answers
+ * Get cached assessment for specific answers
  */
-export function getCachedDiagnosis(answers: any): any | null {
+export function getCachedAssessment(answers: any): any | null {
   const answersHash = btoa(JSON.stringify(answers)).substring(0, 20);
-  const key = `${CACHE_KEYS.DIAGNOSIS}_${answersHash}`;
+  const key = `${CACHE_KEYS.ASSESSMENT}_${answersHash}`;
   return getCacheItem(key);
 }
 

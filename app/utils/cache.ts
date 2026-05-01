@@ -25,7 +25,6 @@ export const CACHE_KEYS = {
   INTERVENTION_PLANS: 'intervention_plans',
   ASSESSMENT: 'assessment',
   QUESTIONNAIRE: 'questionnaire',
-  GEMINI_QUESTIONS: 'gemini_questions',
   USER_ANSWERS: 'user_answers',
 } as const;
 
@@ -248,23 +247,6 @@ export function getCachedQuestionnaire(sessionId: string): any | null {
   return getCacheItem(key);
 }
 
-/**
- * Cache Gemini questions
- */
-export function cacheGeminiQuestions(answers: any, questions: any[]): void {
-  const answersHash = btoa(JSON.stringify(answers)).substring(0, 20);
-  const key = `${CACHE_KEYS.GEMINI_QUESTIONS}_${answersHash}`;
-  setCacheItem(key, questions);
-}
-
-/**
- * Get cached Gemini questions
- */
-export function getCachedGeminiQuestions(answers: any): any[] | null {
-  const answersHash = btoa(JSON.stringify(answers)).substring(0, 20);
-  const key = `${CACHE_KEYS.GEMINI_QUESTIONS}_${answersHash}`;
-  return getCacheItem(key);
-}
 
 /**
  * Initialize cache system - cleanup expired items on app start

@@ -13,16 +13,6 @@ import {
 } from "../model/new/index";
 import type { DiagnosticAnswers } from "../model/new/types";
 
-// Check for environment variable
-if (!process.env.GEMINI_API_KEY) {
-  console.error("\n ERROR: GEMINI_API_KEY not set");
-  console.error("\nTo run this model, you need to:");
-  console.error("1. Get an API key from https://ai.google.dev/");
-  console.error("2. Set it as an environment variable:");
-  console.error("   export GEMINI_API_KEY='your-api-key-here'");
-  console.error("\nThen run: npx ts-node test-model.ts\n");
-  process.exit(1);
-}
 
 async function runTest() {
   console.log(" Starting Stuck Diagnosis Model Test\n");
@@ -114,10 +104,6 @@ async function runTest() {
   } catch (error) {
     if (error instanceof Error) {
       console.error(" Error:", error.message);
-      if (error.message.includes("API key")) {
-        console.error("\nMake sure GEMINI_API_KEY is set:");
-        console.error("   export GEMINI_API_KEY='your-key-here'");
-      }
     }
     process.exit(1);
   }

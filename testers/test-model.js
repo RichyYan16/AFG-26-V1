@@ -9,16 +9,6 @@
  * This script tests the core diagnosis and intervention generation functions
  */
 
-// Check for environment variable
-if (!process.env.GEMINI_API_KEY) {
-  console.error("\n ERROR: GEMINI_API_KEY not set");
-  console.error("\nTo run this model, you need to:");
-  console.error("1. Get an API key from https://ai.google.dev/");
-  console.error("2. Set it as an environment variable:");
-  console.error("   export GEMINI_API_KEY='your-api-key-here'");
-  console.error("\nThen run: node test-model.js\n");
-  process.exit(1);
-}
 
 // Dynamic import for ES modules
 async function main() {

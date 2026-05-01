@@ -1,19 +1,14 @@
 /**
  * Intervention Plan Generator
- * Uses Gemini to generate personalized, tiny intervention plans
+ * Uses fallback logic to generate intervention plans
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { generateInterventionPlan } from "./geminiIntegration";
-import { SYSTEM_PROMPTS } from "./prompts";
 import type {
   StuckType,
   StudentProfile,
   InterventionPlan,
 } from "./types";
 import { INTERVENTION_WEIGHTS } from "./weights";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 interface AlternativeStep {
   timeMinutes?: number;
@@ -30,30 +25,14 @@ interface AlternativePlanPayload {
 
 /**
  * Build a personalized intervention plan for a student
- * Combines Gemini generation with student history context
+ * Uses fallback logic instead of Gemini generation
  */
 export async function buildInterventionPlanForStudent(
   stuckType: StuckType,
   profile: StudentProfile,
 ): Promise<InterventionPlan> {
-  const typicalDuration = INTERVENTION_WEIGHTS.timingByType[stuckType] || 15;
-  const subject =
-    Object.keys(profile.bySubjectAndType).find((key) =>
-      key.startsWith(stuckType),
-    ) || "your assignment";
-  const previousAttempts = profile.totalSessions;
-
-  const context = {
-    averageStuckMinutes: profile.averageTimeStuckMinutes || 45,
-    subject,
-    previousAttempts,
-  };
-
-  // Call Gemini to generate intervention
-  const geminiPlan = await generateInterventionPlan(stuckType, context);
-
-  // geminiPlan is already type InterventionPlan, return as-is
-  return geminiPlan;
+  // Use fallback intervention for now
+  return getFallbackIntervention(stuckType);
 }
 
 /**
@@ -63,62 +42,9 @@ export async function buildInterventionPlanForStudent(
 export async function buildMultipleInterventionPlans(
   stuckType: StuckType,
 ): Promise<InterventionPlan[]> {
-  const plans: InterventionPlan[] = [];
-  const context = {
-    averageStuckMinutes: 45,
-    subject: "this assignment",
-    previousAttempts: 1,
-  };
-
-  // Generate primary plan
-  const primaryPlan = await generateInterventionPlan(stuckType, context);
-  plans.push(primaryPlan);
-
-  // Generate alternative approaches (up to 3 total options)
-  try {
-    const model = genAI.getGenerativeModel({
-      model: INTERVENTION_WEIGHTS.geminiModel,
-    });
-
-    const prompt = `Generate 2 alternative micro-intervention plans for ${stuckType} (different from the primary one).
-    Format as JSON array of plans. Keep it brief - each plan ~5-15 minutes.`;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      systemInstruction: SYSTEM_PROMPTS.intervention,
-    });
-
-    const responseText =
-      result.response.candidates?.[0]?.content.parts[0]?.text || "";
-
-    // Try to parse alternatives
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as AlternativePlanPayload[];
-      for (const alt of parsed.slice(0, 2)) {
-        const steps = alt.steps || [];
-        // Max 2 alternatives
-        plans.push({
-          stuckType,
-          headline: alt.headline || "Alternative approach",
-          whyItWorks: alt.whyItWorks || "Different strategy",
-          steps: steps.map((s) => ({
-            timeMinutes: s.timeMinutes || 5,
-            action: s.action || "Continue",
-            tip: s.tip,
-          })),
-          reflectionPrompt: alt.reflectionPrompt || "How are you feeling?",
-          estimatedTotalMinutes:
-            steps.reduce((sum: number, s) => sum + (s.timeMinutes || 0), 0) || 15,
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error generating alternative plans:", error);
-    // Fallback: return just the primary plan
-  }
-
-  return plans;
+  // Return just the fallback plan for now
+  const primaryPlan = getFallbackIntervention(stuckType);
+  return [primaryPlan];
 }
 
 /**
@@ -128,11 +54,153 @@ export async function buildMultipleInterventionPlans(
 export async function buildQuickInterventionPlan(
   stuckType: StuckType,
 ): Promise<InterventionPlan> {
-  const context = {
-    averageStuckMinutes: 45,
-    subject: "this assignment",
-    previousAttempts: 1,
+  // Use fallback intervention for now
+  return getFallbackIntervention(stuckType);
+}
+
+/**
+ * Fallback intervention if Gemini fails
+ * Based on stuck type research
+ */
+function getFallbackIntervention(stuckType: StuckType): InterventionPlan {
+  const fallbacks: Record<StuckType, InterventionPlan> = {
+    confusion: {
+      stuckType,
+      headline: "Re-read with a question in mind",
+      whyItWorks:
+        "Having a specific target makes reading active, not passive.",
+      steps: [
+        { timeMinutes: 2, action: "Write down your #1 confusion point" },
+        {
+          timeMinutes: 3,
+          action: "Re-read just that section, looking for the answer",
+          tip: "Highlight/underline as you go",
+        },
+        {
+          timeMinutes: 2,
+          action: "Jot down what you found",
+          tip: "Even if it's 'still confused,' that's progress",
+        },
+      ],
+      reflectionPrompt: "Did that specific re-read help, even a little?",
+      estimatedTotalMinutes: 7,
+    },
+    ambiguity: {
+      stuckType,
+      headline: "Ask for clarification",
+      whyItWorks:
+        "You can't read the professor's mind—but you can ask them.",
+      steps: [
+        {
+          timeMinutes: 3,
+          action: "Write your specific question (2-3 sentences max)",
+          tip: "Not 'what do you want' but 'is this X or Y'",
+        },
+        {
+          timeMinutes: 2,
+          action: "Send it to the professor or TA right now",
+          tip: "Don't wait; they're usually happy to clarify",
+        },
+      ],
+      reflectionPrompt: "How does it feel to have asked instead of guessed?",
+      estimatedTotalMinutes: 5,
+    },
+    fear: {
+      stuckType,
+      headline: "Separate imagination from reality",
+      whyItWorks: "Our brains catastrophize; grounding helps.",
+      steps: [
+        {
+          timeMinutes: 3,
+          action: "Write the actual worst-case scenario (1 sentence)",
+        },
+        {
+          timeMinutes: 2,
+          action: "Write the most likely scenario",
+          tip: "Usually much less scary",
+        },
+        {
+          timeMinutes: 2,
+          action: "Write one small action you can take right now",
+        },
+      ],
+      reflectionPrompt:
+        "Does the likely outcome feel more manageable than your fear?",
+      estimatedTotalMinutes: 7,
+    },
+    overwhelm: {
+      stuckType,
+      headline: "Break it into one tiny piece",
+      whyItWorks: "Overwhelm lives in the big picture; action lives in small steps.",
+      steps: [
+        {
+          timeMinutes: 2,
+          action: "List the 3-5 main parts of this assignment",
+        },
+        {
+          timeMinutes: 3,
+          action: "Pick the smallest, least scary part",
+          tip: "Not the most important—the most doable",
+        },
+        {
+          timeMinutes: 5,
+          action: "Work on just that part for 5 minutes",
+          tip: "Set a timer if it helps",
+        },
+      ],
+      reflectionPrompt: "Does the assignment feel smaller now?",
+      estimatedTotalMinutes: 10,
+    },
+    exhaustion: {
+      stuckType,
+      headline: "Restore, don't push",
+      whyItWorks:
+        "Exhaustion is your body's signal; rest is the intervention.",
+      steps: [
+        {
+          timeMinutes: 5,
+          action: "Do something non-productive: walk, stretch, snack, music",
+          tip: "No phone; no 'productive' rest",
+        },
+        {
+          timeMinutes: 3,
+          action: "Drink water, get fresh air if possible",
+        },
+        {
+          timeMinutes: 5,
+          action: "After rest, return to ONE small task for 5 minutes",
+          tip: "You might feel 10% better with a break",
+        },
+      ],
+      reflectionPrompt: "Do you feel even slightly more awake?",
+      estimatedTotalMinutes: 13,
+    },
+    perfection_loop: {
+      stuckType,
+      headline: "Submit the rough draft",
+      whyItWorks:
+        "Perfection is a loop; done is forward. Done can be improved; stuck cannot.",
+      steps: [
+        {
+          timeMinutes: 2,
+          action: "Set a timer for 10 min",
+          tip: "You're not editing anymore—you're submitting",
+        },
+        {
+          timeMinutes: 8,
+          action: "Do your best for 10 minutes, then stop",
+          tip: "No tweaks after the timer",
+        },
+        {
+          timeMinutes: 2,
+          action: "Submit / turn in before you can second-guess",
+          tip: "Close the tab if you have to",
+        },
+      ],
+      reflectionPrompt: "How does it feel to be done instead of perfect?",
+      estimatedTotalMinutes: 12,
+    },
   };
 
-  return await generateInterventionPlan(stuckType, context);
+  return fallbacks[stuckType];
 }

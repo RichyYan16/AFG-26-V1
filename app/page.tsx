@@ -18,7 +18,7 @@ import {
   requestAssessment,
 } from "./utils";
 import {
-  generateGeminiQuestions,
+  generateFollowUpQuestions,
   generateInterventionPlans,
 } from "./services/diagnosis";
 import { handleAsyncError, ERROR_MESSAGES } from "./utils/errorHandling";
@@ -66,6 +66,7 @@ export default function StuckApp() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [processComplete, setProcessComplete] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [sessionKey, setSessionKey] = useState<string>("");
 
   const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
   const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
@@ -107,6 +108,23 @@ export default function StuckApp() {
     setCompletedStepIds([]);
     setActiveTimerStepId(null);
     stopTimer();
+    setSessionKey(""); // Reset session key
+  }
+
+  // Check if session with this key already exists in history
+  function doesSessionExist(sessionKeyToCheck: string): boolean {
+    return history.some(session => 
+      session.diagnosis && 
+      session.diagnosis.summary && 
+      session.diagnosis.summary.includes(sessionKeyToCheck)
+    );
+  }
+
+  // Generate a unique session signature based on answers
+  function generateSessionSignature(answers: Partial<DiagnosticAnswers>): string {
+    const answersString = JSON.stringify(answers, Object.keys(answers).sort());
+    const timestamp = Date.now().toString();
+    return btoa(answersString + timestamp).substring(0, 20);
   }
 
   function applyAssessmentResponse(
@@ -135,6 +153,12 @@ export default function StuckApp() {
     setCurrentGeminiIndex(0);
     setProcessComplete(false);
     resetResultState();
+
+    // Generate unique session key based on timestamp and random component
+    const timestamp = Date.now();
+    const randomComponent = Math.random().toString(36).substring(2, 15);
+    const uniqueKey = `${timestamp}_${randomComponent}`;
+    setSessionKey(uniqueKey);
 
     const sessionId = crypto.randomUUID();
     cacheQuestionnaire(sessionId, {}); // Initialize empty questionnaire cache
@@ -281,14 +305,14 @@ export default function StuckApp() {
 
       setLoading(true);
       try {
-        const generatedQuestions = await generateGeminiQuestions(latestDiagnosticAnswers);
+        const generatedQuestions = await generateFollowUpQuestions(latestDiagnosticAnswers);
         setGeminiQuestions(generatedQuestions);
         setCurrentGeminiIndex(0);
         setLoading(false);
         return;
       } catch (error) {
         const result = await handleAsyncError(
-          () => generateGeminiQuestions(latestDiagnosticAnswers),
+          () => generateFollowUpQuestions(latestDiagnosticAnswers),
           { customMessage: ERROR_MESSAGES.assessment.generate }
         );
         
@@ -412,6 +436,15 @@ export default function StuckApp() {
       return;
     }
 
+    // Generate session signature based on answers
+    const sessionSignature = generateSessionSignature(completeAnswers);
+    
+    // Check if this session already exists
+    if (doesSessionExist(sessionKey) || doesSessionExist(sessionSignature)) {
+      setNotice("This session has already been saved.");
+      return;
+    }
+
     setSaving(true);
     setErrorMessage("");
     setNotice("");
@@ -427,7 +460,10 @@ export default function StuckApp() {
       userId: "user", // TODO: Get actual user ID
       timestamp: now,
       stuckType: assessment.primaryType,
-      diagnosis: assessment,
+      diagnosis: {
+        ...assessment,
+        summary: `${assessment.summary} [SessionKey: ${sessionKey}]` // Embed session key in summary
+      },
       interventionPlan: plan,
       outcome: selectedOutcome,
       durationMinutes: Math.floor((Date.now() - sessionStartTime) / 60000),
@@ -469,6 +505,7 @@ export default function StuckApp() {
     setShowIntroduction(false);
     setProcessComplete(false);
     resetResultState();
+    setSessionKey(""); // Clear session key
     setErrorMessage("");
     setNotice("");
   }

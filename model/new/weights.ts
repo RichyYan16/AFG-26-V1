@@ -159,8 +159,8 @@ export const INTERVENTION_WEIGHTS = {
     /* Perfection loops can be addressed with targeted support. */
     perfection_loop: 8,
   },
-  /* Use a lightweight Gemini model for fast intervention generation. */
-  geminiModel: "gemini-2.5-flash-lite",
+  /* Use a lightweight model for fast intervention generation. */
+  model: "claude-3.5-sonnet",
   /* Moderate temperature keeps the output supportive but varied. */
   temperature: 0.7,
 } as const;
@@ -212,7 +212,7 @@ export const CONFIDENCE_CALIBRATION = {
   /* Weight assigned to embedding-based confidence. */
   embeddingContribution: 0.5,
   /* Weight assigned to LLM-based confidence. */
-  geminiContribution: 0.5,
+  llmContribution: 0.5,
   /* Extra signal from behavior is deliberately smaller but still useful. */
   behavioralSignalContribution: 0.1,
 } as const;

@@ -7,13 +7,6 @@ import type {
   QuestionOption,
 } from "@/model/new/types";
 import { requestAssessment } from "../utils";
-import {
-  getCachedGeminiQuestions,
-  cacheGeminiQuestions,
-  getCachedInterventionPlans,
-  cacheInterventionPlans,
-  initializeCache,
-} from "../utils/cache";
 
 // Custom Word Embedding Algorithm
 export function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Record<string, number> {
@@ -35,88 +28,10 @@ export function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Reco
   return embeddings;
 }
 
-// Generate Gemini questions based on initial responses
-export async function generateGeminiQuestions(answers: Partial<DiagnosticAnswers>): Promise<AdaptiveQuestion[]> {
-  // Check cache first
-  const cachedQuestions = getCachedGeminiQuestions(answers);
-  if (cachedQuestions) {
-    console.log('Using cached Gemini questions');
-    return cachedQuestions;
-  }
-
-  try {
-    const embeddings = computeWordEmbeddings(answers);
-    
-    // Get the top stuck type, with fallback if embeddings is empty
-    const embeddingEntries = Object.entries(embeddings);
-    const topStuckType = embeddingEntries.length > 0 
-      ? embeddingEntries.reduce((a, b) => b[1] > a[1] ? b : a)[0]
-      : "confusion";
-    
-    // Use Gemini API to generate follow-up questions
-    const messages: ChatMessage[] = [
-      {
-        role: 'system',
-        content: `You are an educational psychologist helping diagnose academic paralysis. Based on student's initial responses indicating ${topStuckType} tendencies, generate 5 follow-up questions to better understand their situation. Each question should have 3-4 answer options. Return as JSON array with format: [{id: "q1", prompt: "question", options: [{value: "a", label: "Option A"}]}]`
-      },
-      {
-        role: 'user',
-        content: `Student responses: ${JSON.stringify(answers)}. Generate 5 follow-up questions.`
-      }
-    ];
-    
-    const response = await sendMessageToAPI(messages);
-    
-    // Clean up the response - remove markdown formatting if present
-    let cleanResponse = response;
-    if (response.includes('```json')) {
-      cleanResponse = response.replace(/```json\n?/g, '').replace(/```$/g, '');
-    }
-    
-    // Try to parse JSON, fallback to empty array if fails
-    let generatedQuestions;
-    try {
-      generatedQuestions = JSON.parse(cleanResponse);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('Raw response:', response);
-      console.error('Cleaned response:', cleanResponse);
-      generatedQuestions = [];
-    }
-    
-    // Validate the parsed data
-    if (!Array.isArray(generatedQuestions)) {
-      console.error('Response is not an array:', generatedQuestions);
-      return [];
-    }
-    
-    type ParsedGeminiQuestion = {
-      prompt?: string;
-      options?: QuestionOption[];
-    };
-
-    const questions = (generatedQuestions as ParsedGeminiQuestion[]).map((q, index) => ({
-      id: `gemini_${index + 1}` as unknown as AdaptiveQuestion["id"],
-      prompt: q.prompt || `Follow-up question ${index + 1}`,
-      options: Array.isArray(q.options)
-        ? q.options
-        : [
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-            { value: "maybe", label: "Sometimes" },
-          ],
-    }));
-
-    // Cache the generated questions
-    cacheGeminiQuestions(answers, questions);
-    
-    return questions;
-  } catch (error) {
-    console.error('Error generating Gemini questions:', error);
-    
-    // Return fallback questions if Gemini fails
-    return getFallbackQuestions();
-  }
+// Generate follow-up questions based on initial responses
+export async function generateFollowUpQuestions(answers: Partial<DiagnosticAnswers>): Promise<AdaptiveQuestion[]> {
+  // Return fallback questions for now
+  return getFallbackQuestions();
 }
 
 // Fallback questions when Gemini API fails
@@ -175,52 +90,13 @@ function getFallbackQuestions(): AdaptiveQuestion[] {
   ];
 }
 
-// Generate intervention plans using Gemini API
+// Generate intervention plans using fallback logic
 export async function generateInterventionPlans(assessment: DiagnosisResult): Promise<Array<{action: string; resources?: string[]}>> {
-  // Check cache first
-  const cachedPlans = getCachedInterventionPlans(assessment.primaryType);
-  if (cachedPlans) {
-    console.log('Using cached intervention plans for', assessment.primaryType);
-    return cachedPlans.map(plan => ({ action: plan, resources: [] }));
-  }
-
-  try {
-    const messages: ChatMessage[] = [
-      {
-        role: 'system',
-        content: `You are an educational psychologist specializing in academic paralysis. Based on the assessment of ${assessment.primaryType} with ${Math.round(assessment.confidence * 100)}% confidence, generate 5 specific, actionable intervention strategies. Each should include an action and 3-4 helpful resources. Return as JSON array with objects containing "action" and "resources" fields.`
-      },
-      {
-        role: 'user',
-        content: `Assessment results: ${JSON.stringify(assessment)}. Generate 5 intervention plans with actions and resources.`
-      }
-    ];
-    
-    const response = await sendMessageToAPI(messages);
-    
-    // Clean up the response - remove markdown formatting if present
-    let cleanResponse = response;
-    if (response.includes('```json')) {
-      cleanResponse = response.replace(/```json\n?/g, '').replace(/```$/g, '');
-    }
-    
-    const plans = JSON.parse(cleanResponse);
-    const parsedPlans = Array.isArray(plans) ? plans : [];
-    
-    // Cache the generated plans (only actions for caching)
-    const actionsOnly = parsedPlans.map((plan: any) => plan.action || plan);
-    cacheInterventionPlans(assessment.primaryType, actionsOnly);
-    
-    return parsedPlans;
-  } catch (error) {
-    console.error('Error generating intervention plans:', error);
-    
-    // Return fallback intervention plans if Gemini fails
-    return getFallbackInterventionPlans(assessment.primaryType);
-  }
+  // Return fallback intervention plans for now
+  return getFallbackInterventionPlans(assessment.primaryType);
 }
 
-// Fallback intervention plans when Gemini API fails
+// Fallback intervention plans
 function getFallbackInterventionPlans(stuckType: string): Array<{action: string; resources?: string[]}> {
   const fallbackPlans: Record<string, Array<{action: string; resources?: string[]}>> = {
     confusion: [

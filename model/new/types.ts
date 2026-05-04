@@ -157,6 +157,7 @@ export interface InterventionStep {
   timeMinutes: number;
   action: string;
   tip?: string;
+  resources?: string[];
 }
 
 export interface InterventionPlan {

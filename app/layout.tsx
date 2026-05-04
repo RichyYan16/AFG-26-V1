@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Unstuck - Academic Paralysis Diagnosis",
+  title: "Unstuck - Academic Paralysis Assessment",
   description:
-    "Diagnostic and intervention engine that helps students identify why they are stuck and what to do next.",
+    "Assessment and intervention engine that helps students identify why they are stuck and what to do next.",
 };
 
 export default function RootLayout({
@@ -16,9 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );

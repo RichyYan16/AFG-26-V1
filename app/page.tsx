@@ -1,139 +1,51 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import AuthForm from "@/components/AuthForm";
-import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, User } from "lucide-react";
-import { sendMessageToAPI, type ChatMessage } from "@/app/services/api";
 import type {
   AdaptiveQuestion,
-  DiagnoseResponse,
   DiagnosticAnswers,
-  QuestionOption,
   DiagnosisResult,
   InterventionPlan,
   SessionOutcome,
   SessionRecord,
-  StuckType,
   StudentProfile,
   TrendInsight,
 } from "@/model/new/types";
 
-type AppTab =
-  | "home"
-  | "introduction"
-  | "questionnaire"
-  | "result"
-  | "intervention"
-  | "insights"
-  | "history";
+import { AppTab, STORAGE_KEY, MAX_HISTORY, OUTCOME_LABELS } from "./constants";
+import {
+  asCompleteAnswers,
+  requestAssessment,
+} from "./utils";
+import {
+  generateFollowUpQuestions,
+  generateInterventionPlans,
+} from "./services/diagnosis";
+import { handleAsyncError, ERROR_MESSAGES } from "./utils/errorHandling";
+import { initializeCache, cacheQuestionnaire, getCachedQuestionnaire } from "./utils/cache";
+import { useTimer } from "./hooks/useTimer";
+import { useHistory } from "./hooks/useHistory";
 
-const STORAGE_KEY = "stuck_sessions_v1";
-const MAX_HISTORY = 300;
-
-const QUESTION_TITLES: Record<AdaptiveQuestion["id"], string> = {
-  internalVoice: "Internal Voice",
-  eightyPercentThought: "80% Thought",
-  whyBestWork: "Why Best Work",
-  avoidanceDuration: "Avoidance Duration",
-  helpSeeking: "Asking for Help",
-};
-
-const STUCK_TYPE_LABELS: Record<StuckType, string> = {
-  confusion: "Confusion Stuck",
-  ambiguity: "Ambiguity Stuck",
-  fear: "Fear Stuck",
-  overwhelm: "Overwhelm Stuck",
-  exhaustion: "Exhaustion Stuck",
-  perfection_loop: "Perfection Loop Stuck",
-};
-
-const OUTCOME_LABELS: Record<SessionOutcome, string> = {
-  started: "Started",
-  finished: "Finished",
-  gave_up: "Gave Up",
-};
-
-const TAB_LABELS: Record<AppTab, string> = {
-  home: "Home",
-  introduction: "Introduction",
-  questionnaire: "Questionnaire",
-  result: "Result",
-  intervention: "Plan",
-  insights: "Insights",
-  history: "History",
-};
-
-function asCompleteAnswers(
-  answers: Partial<DiagnosticAnswers>,
-): DiagnosticAnswers | null {
-  if (
-    answers.internalVoice &&
-    answers.eightyPercentThought &&
-    answers.whyBestWork &&
-    answers.avoidanceDuration &&
-    answers.helpSeeking
-  ) {
-    return answers as DiagnosticAnswers;
-  }
-
-  return null;
-}
-
-function formatTimer(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, totalSeconds);
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
-}
-
-async function loadUserHistory(userId: string): Promise<SessionRecord[]> {
-  if (!userId) {
-    return [];
-  }
-
-  try {
-    // Load from local storage instead of Firebase
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error("Error loading user history:", error);
-    return [];
-  }
-}
-
-async function requestDiagnosis(
-  answers: Partial<DiagnosticAnswers>,
-  history: SessionRecord[],
-): Promise<DiagnoseResponse> {
-  const response = await fetch("/api/stuck/diagnose", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ answers, history }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Diagnosis request failed.");
-  }
-
-  return (await response.json()) as DiagnoseResponse;
-}
+import { Header } from "./components/Header";
+import { Navigation } from "./components/Navigation";
+import { Alerts } from "./components/Alerts";
+import { HomeTab } from "./components/HomeTab";
+import { IntroductionTab } from "./components/IntroductionTab";
+import { QuestionnaireTab } from "./components/QuestionnaireTab";
+import { ResultTab } from "./components/ResultTab";
+import { InterventionTab } from "./components/InterventionTab";
+import { InsightsTab } from "./components/InsightsTab";
+import { HistoryTab } from "./components/HistoryTab";
 
 export default function StuckApp() {
-  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [answers, setAnswers] = useState<Partial<DiagnosticAnswers>>({});
   const [openResponses, setOpenResponses] = useState<Record<string, string>>({});
   const [questionQueue, setQuestionQueue] = useState<AdaptiveQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [history, setHistory] = useState<SessionRecord[]>([]);
-  const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
+  const [assessment, setAssessment] = useState<DiagnosisResult | null>(null);
   const [plan, setPlan] = useState<InterventionPlan | null>(null);
-  const [interventionPlans, setInterventionPlans] = useState<string[]>([]);
+  const [interventionPlans, setInterventionPlans] = useState<Array<{action: string; resources?: string[]}>>([]);
   const [loadingInterventions, setLoadingInterventions] = useState(false);
   const [showIntroduction, setShowIntroduction] = useState(false);
   const [insights, setInsights] = useState<TrendInsight[]>([]);
@@ -144,19 +56,25 @@ export default function StuckApp() {
   const [activeTimerStepId, setActiveTimerStepId] = useState<string | null>(
     null,
   );
-  const [timerSecondsLeft, setTimerSecondsLeft] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
-  const [historyHydrated, setHistoryHydrated] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [geminiQuestions, setGeminiQuestions] = useState<AdaptiveQuestion[]>([]);
   const [currentGeminiIndex, setCurrentGeminiIndex] = useState(0);
-  const [wordEmbeddingResults, setWordEmbeddingResults] = useState<Record<string, number>>({});
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [processComplete, setProcessComplete] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [sessionKey, setSessionKey] = useState<string>("");
+
+  const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
+  const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
+
+  // Initialize cache on app start
+  useEffect(() => {
+    initializeCache();
+  }, []);
 
   const currentQuestion = questionQueue[currentQuestionIndex] ?? null;
 
@@ -181,66 +99,51 @@ export default function StuckApp() {
     [activeTimerStepId, plan],
   );
 
-  useEffect(() => {
-    if (user) {
-      loadUserHistory(user.uid).then((userHistory) => {
-        setHistory(userHistory);
-        setHistoryHydrated(true);
-      });
-    } else {
-      // Set history as empty for non-authenticated users
-      setHistory([]);
-      setHistoryHydrated(true);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!timerRunning) {
-      return;
-    }
-
-    const timerId = window.setInterval(() => {
-      setTimerSecondsLeft((previous) => {
-        if (previous <= 1) {
-          setTimerRunning(false);
-          return 0;
-        }
-        return previous - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(timerId);
-  }, [timerRunning]);
-
   function resetResultState(): void {
-    setDiagnosis(null);
+    setAssessment(null);
     setPlan(null);
     setInsights([]);
     setProfile(null);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
     setActiveTimerStepId(null);
-    setTimerSecondsLeft(0);
-    setTimerRunning(false);
+    stopTimer();
+    setSessionKey(""); // Reset session key
   }
 
-  function applyDiagnosisResponse(
-    response: Extract<DiagnoseResponse, { status: "diagnosed" }>,
+  // Check if session with this key already exists in history
+  function doesSessionExist(sessionKeyToCheck: string): boolean {
+    return history.some(session => 
+      session.diagnosis && 
+      session.diagnosis.summary && 
+      session.diagnosis.summary.includes(sessionKeyToCheck)
+    );
+  }
+
+  // Generate a unique session signature based on answers
+  function generateSessionSignature(answers: Partial<DiagnosticAnswers>): string {
+    const answersString = JSON.stringify(answers, Object.keys(answers).sort());
+    const timestamp = Date.now().toString();
+    return btoa(answersString + timestamp).substring(0, 20);
+  }
+
+  function applyAssessmentResponse(
+    response: Extract<import("@/model/new/types").DiagnoseResponse, { status: "diagnosed" }>,
   ): void {
-    setDiagnosis(response.diagnosis);
+    setAssessment(response.diagnosis);
     setPlan(response.plan);
     setInsights(response.insights);
     setProfile(response.profile);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
     setActiveTimerStepId(null);
-    setTimerSecondsLeft(0);
-    setTimerRunning(false);
+    stopTimer();
   }
 
-  async function beginDiagnosis(): Promise<void> {
+  async function beginAssessment(): Promise<void> {
     setErrorMessage("");
-    setNotice("");
+    setRetryCount(0);
+    setSessionStartTime(Date.now());
     setLoading(true);
     setAnswers({});
     setOpenResponses({});
@@ -248,11 +151,18 @@ export default function StuckApp() {
     setCurrentQuestionIndex(0);
     setGeminiQuestions([]);
     setCurrentGeminiIndex(0);
-    setWordEmbeddingResults({});
-    setProcessComplete(false); // Reset process completion
+    setProcessComplete(false);
     resetResultState();
 
-    // Show introduction screen first
+    // Generate unique session key based on timestamp and random component
+    const timestamp = Date.now();
+    const randomComponent = Math.random().toString(36).substring(2, 15);
+    const uniqueKey = `${timestamp}_${randomComponent}`;
+    setSessionKey(uniqueKey);
+
+    const sessionId = crypto.randomUUID();
+    cacheQuestionnaire(sessionId, {}); // Initialize empty questionnaire cache
+
     setShowIntroduction(true);
     setActiveTab("introduction");
     setLoading(false);
@@ -260,9 +170,9 @@ export default function StuckApp() {
 
   async function startQuestionnaire(): Promise<void> {
     setLoading(true);
-    setShowIntroduction(false); // Mark introduction as completed
+    setShowIntroduction(false);
     try {
-      const response = await requestDiagnosis({}, history);
+      const response = await requestAssessment({}, history);
       if (response.status === "needs_more_answers") {
         setQuestionQueue(response.questionQueue);
         setCurrentQuestionIndex(0);
@@ -270,22 +180,43 @@ export default function StuckApp() {
         return;
       }
 
-      applyDiagnosisResponse(response);
+      applyAssessmentResponse(response);
       setActiveTab("result");
-    } catch {
-      setErrorMessage("Could not start diagnosis. Please try again.");
+    } catch (error) {
+      const errorMessage = await handleAsyncError(
+        () => requestAssessment({}, history),
+        { customMessage: ERROR_MESSAGES.assessment.start }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.assessment.start);
     } finally {
       setLoading(false);
     }
   }
 
-  function updateAnswer(questionId: AdaptiveQuestion["id"], value: string): void {
+  function updateAnswer(questionId: "internalVoice" | "eightyPercentThought" | "whyBestWork" | "avoidanceDuration" | "helpSeeking", value: string): void {
     setErrorMessage("");
-    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+    setAnswers((previous) => {
+      const updatedAnswers = { ...previous, [questionId]: value };
+      // Cache the updated answers
+      const sessionId = 'current_session'; // Use a fixed key for current session
+      cacheQuestionnaire(sessionId, updatedAnswers);
+      return updatedAnswers;
+    });
   }
 
   function updateOpenResponse(questionId: string, value: string): void {
-    setOpenResponses((previous) => ({ ...previous, [questionId]: value }));
+    setErrorMessage("");
+    setOpenResponses((previous) => {
+      const updatedResponses = { ...previous, [questionId]: value };
+      // Cache the updated responses
+      const sessionId = 'current_session';
+      const currentAnswers = getLatestDiagnosticAnswers({
+        ...answers,
+        ...(currentQuestion?.kind === "slider" ? {} : { [currentQuestion.id]: value.trim() }),
+      });
+      cacheQuestionnaire(sessionId, currentAnswers);
+      return updatedResponses;
+    });
   }
 
   function getLatestDiagnosticAnswers(
@@ -325,203 +256,126 @@ export default function StuckApp() {
     };
   }
 
-  // Custom Word Embedding Algorithm
-  function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Record<string, number> {
-    const embeddings: Record<string, number> = {};
-    
-    // Simple word embedding based on response patterns
-    // Using actual DiagnosticAnswers properties
-    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('confused')) embeddings.confusion = 0.8;
-    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('unclear')) embeddings.ambiguity = 0.6;
-    if (answers.whyBestWork === 'no') embeddings.perfection_loop = 0.7;
-    if (answers.whyBestWork === 'maybe') embeddings.fear = 0.5;
-    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('scared')) embeddings.fear = 0.9;
-    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('overwhelm')) embeddings.overwhelm = 0.8;
-    if (answers.internalVoice && answers.internalVoice.toLowerCase().includes('tired')) embeddings.exhaustion = 0.7;
-    if (answers.eightyPercentThought && answers.eightyPercentThought.toLowerCase().includes('unclear')) embeddings.ambiguity = 0.8;
-    if (answers.avoidanceDuration && parseInt(answers.avoidanceDuration) > 30) embeddings.fear = 0.8;
-    if (answers.helpSeeking === 'no') embeddings.perfection_loop = 0.6;
-    
-    return embeddings;
-  }
-
-  // Generate Gemini questions based on initial responses
-  async function generateGeminiQuestions(answers: Partial<DiagnosticAnswers>): Promise<AdaptiveQuestion[]> {
-    try {
-      const embeddings = computeWordEmbeddings(answers);
-      setWordEmbeddingResults(embeddings);
-      
-      // Get the top stuck type, with fallback if embeddings is empty
-      const embeddingEntries = Object.entries(embeddings);
-      const topStuckType = embeddingEntries.length > 0 
-        ? embeddingEntries.reduce((a, b) => b[1] > a[1] ? b : a)[0]
-        : "confusion";
-      
-      // Use Gemini API to generate follow-up questions
-      const messages: ChatMessage[] = [
-        {
-          role: 'system',
-          content: `You are an educational psychologist helping diagnose academic paralysis. Based on student's initial responses indicating ${topStuckType} tendencies, generate 5 follow-up questions to better understand their situation. Each question should have 3-4 answer options. Return as JSON array with format: [{id: "q1", prompt: "question", options: [{value: "a", label: "Option A"}]}]`
-        },
-        {
-          role: 'user',
-          content: `Student responses: ${JSON.stringify(answers)}. Generate 5 follow-up questions.`
-        }
-      ];
-      
-      const response = await sendMessageToAPI(messages);
-      
-      // Clean up the response - remove markdown formatting if present
-      let cleanResponse = response;
-      if (response.includes('```json')) {
-        cleanResponse = response.replace(/```json\n?/g, '').replace(/```$/g, '');
-      }
-      
-      // Try to parse JSON, fallback to empty array if fails
-      let generatedQuestions;
-      try {
-        generatedQuestions = JSON.parse(cleanResponse);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Raw response:', response);
-        console.error('Cleaned response:', cleanResponse);
-        generatedQuestions = [];
-      }
-      
-      // Validate the parsed data
-      if (!Array.isArray(generatedQuestions)) {
-        console.error('Response is not an array:', generatedQuestions);
-        return [];
-      }
-      
-      type ParsedGeminiQuestion = {
-        prompt?: string;
-        options?: QuestionOption[];
-      };
-
-      return (generatedQuestions as ParsedGeminiQuestion[]).map((q, index) => ({
-        id: `gemini_${index + 1}` as unknown as AdaptiveQuestion["id"],
-        prompt: q.prompt || `Follow-up question ${index + 1}`,
-        options: Array.isArray(q.options)
-          ? q.options
-          : [
-              { value: "yes", label: "Yes" },
-              { value: "no", label: "No" },
-              { value: "maybe", label: "Sometimes" },
-            ],
-      }));
-    } catch (error) {
-      console.error('Error generating Gemini questions:', error);
-      return [];
-    }
-  }
-
   async function handleNextQuestion(): Promise<void> {
-  if (!currentQuestion) {
-    return;
-  }
+    if (!currentQuestion) {
+      return;
+    }
 
-  const activeQuestion =
-    geminiQuestions.length > 0
-      ? geminiQuestions[currentGeminiIndex]
-      : currentQuestion;
+    const activeQuestion =
+      geminiQuestions.length > 0
+        ? geminiQuestions[currentGeminiIndex]
+        : currentQuestion;
 
-  if (!activeQuestion) {
-    return;
-  }
+    if (!activeQuestion) {
+      return;
+    }
 
-  // For base questions:
-  // - slider question requires a selected numeric value
-  // - text questions require 19+ chars
-  if (geminiQuestions.length === 0) {
-    if (activeQuestion.kind === "slider") {
-      if (answers[activeQuestion.id] === undefined) {
-        setErrorMessage("Please move the slider to continue.");
+    if (geminiQuestions.length === 0) {
+      if (activeQuestion.kind === "slider") {
+        if (answers[activeQuestion.id] === undefined) {
+          setErrorMessage("Please move the slider to continue.");
+          return;
+        }
+      } else {
+        const responseText = (openResponses[activeQuestion.id] || "").trim();
+        if (responseText.length < 19) {
+          setErrorMessage("Please provide at least 19 characters in your response.");
+          return;
+        }
+
+        setAnswers((previous) => ({
+          ...previous,
+          [activeQuestion.id]: responseText,
+        }));
+      }
+
+      const latestDiagnosticAnswers = getLatestDiagnosticAnswers({
+        ...answers,
+        ...(activeQuestion.kind === "slider"
+          ? {}
+          : { [activeQuestion.id]: (openResponses[activeQuestion.id] || "").trim() }),
+      });
+
+      setErrorMessage("");
+
+      if (currentQuestionIndex < questionQueue.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const generatedQuestions = await generateFollowUpQuestions(latestDiagnosticAnswers);
+        setGeminiQuestions(generatedQuestions);
+        setCurrentGeminiIndex(0);
+        setLoading(false);
+        return;
+      } catch (error) {
+        const result = await handleAsyncError(
+          () => generateFollowUpQuestions(latestDiagnosticAnswers),
+          { customMessage: ERROR_MESSAGES.assessment.generate }
+        );
+        
+        if (!result.success) {
+          setErrorMessage(result.error || ERROR_MESSAGES.assessment.generate);
+          setLoading(false);
+          return;
+        }
+        
+        // If we got here, the async function succeeded
+        const generatedQuestions = result.data!;
+        setGeminiQuestions(generatedQuestions);
+        setCurrentGeminiIndex(0);
+        setLoading(false);
         return;
       }
     } else {
-      const responseText = (openResponses[activeQuestion.id] || "").trim();
-      if (responseText.length < 19) {
-        setErrorMessage("Please provide at least 19 characters in your response.");
+      if (answers[activeQuestion.id] === undefined) {
+        setErrorMessage("Select an option to continue.");
         return;
       }
-
-      // Persist text response into answers
-      setAnswers((previous) => ({
-        ...previous,
-        [activeQuestion.id]: responseText,
-      }));
     }
-
-    const latestDiagnosticAnswers = getLatestDiagnosticAnswers({
-      ...answers,
-      ...(activeQuestion.kind === "slider"
-        ? {}
-        : { [activeQuestion.id]: (openResponses[activeQuestion.id] || "").trim() }),
-    });
 
     setErrorMessage("");
 
-    if (currentQuestionIndex < questionQueue.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    if (currentGeminiIndex < geminiQuestions.length - 1) {
+      setCurrentGeminiIndex(currentGeminiIndex + 1);
       return;
     }
 
     setLoading(true);
     try {
-      const generatedQuestions = await generateGeminiQuestions(latestDiagnosticAnswers);
-      setGeminiQuestions(generatedQuestions);
-      setCurrentGeminiIndex(0);
+      const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
+      const response = await requestAssessment(latestDiagnosticAnswers, history);
+
+      if (response.status === "needs_more_answers") {
+        setQuestionQueue(response.questionQueue);
+        const nextUnansweredIndex = response.questionQueue.findIndex(
+          (question) => !latestDiagnosticAnswers[question.id],
+        );
+        const fallbackIndex = Math.min(
+          currentQuestionIndex + 1,
+          response.questionQueue.length - 1,
+        );
+        setCurrentQuestionIndex(
+          nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
+        );
+        setLoading(false);
+        return;
+      }
+
+      applyAssessmentResponse(response);
+      setActiveTab("result");
+    } catch (error) {
+      const errorMessage = await handleAsyncError(
+        () => requestAssessment(getLatestDiagnosticAnswers(), history),
+        { customMessage: ERROR_MESSAGES.assessment.process }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.assessment.process);
+    } finally {
       setLoading(false);
-      return;
-    } catch {
-      setErrorMessage("Could not generate follow-up questions. Please try again.");
-      setLoading(false);
-      return;
-    }
-  } else {
-    if (answers[activeQuestion.id] === undefined) {
-      setErrorMessage("Select an option to continue.");
-      return;
     }
   }
-
-  setErrorMessage("");
-
-  if (currentGeminiIndex < geminiQuestions.length - 1) {
-    setCurrentGeminiIndex(currentGeminiIndex + 1);
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const latestDiagnosticAnswers = getLatestDiagnosticAnswers();
-    const response = await requestDiagnosis(latestDiagnosticAnswers, history);
-
-    if (response.status === "needs_more_answers") {
-      setQuestionQueue(response.questionQueue);
-      const nextUnansweredIndex = response.questionQueue.findIndex(
-        (question) => !latestDiagnosticAnswers[question.id],
-      );
-      const fallbackIndex = Math.min(
-        currentQuestionIndex + 1,
-        response.questionQueue.length - 1,
-      );
-      setCurrentQuestionIndex(
-        nextUnansweredIndex === -1 ? fallbackIndex : nextUnansweredIndex,
-      );
-      setLoading(false);
-      return;
-    }
-
-    applyDiagnosisResponse(response);
-    setActiveTab("result");
-  } catch {
-    setErrorMessage("Could not process this answer. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-}
 
   function handlePreviousQuestion(): void {
     setErrorMessage("");
@@ -542,66 +396,34 @@ export default function StuckApp() {
 
   function startStepTimer(stepId: string, minutes: number): void {
     setActiveTimerStepId(stepId);
-    setTimerSecondsLeft(minutes * 60);
-    setTimerRunning(true);
+    startTimer(minutes);
   }
 
-  function toggleTimerRunning(): void {
-    if (!activeStep) {
-      return;
-    }
-    setTimerRunning((previous) => !previous);
-  }
-
-  function resetTimer(): void {
-    if (!activeStep) {
-      setActiveTimerStepId(null);
-      setTimerSecondsLeft(0);
-      setTimerRunning(false);
-      return;
-    }
-
-    setTimerSecondsLeft(activeStep.timeMinutes * 60);
-    setTimerRunning(false);
-  }
-
-  // Generate intervention plans using Gemini API
-  async function generateInterventionPlans(diagnosis: DiagnosisResult): Promise<string[]> {
+  async function handleGenerateInterventions(): Promise<void> {
+    if (!assessment) return;
+    
     setLoadingInterventions(true);
     try {
-      const messages: ChatMessage[] = [
-        {
-          role: 'system',
-          content: `You are an educational psychologist specializing in academic paralysis. Based on the diagnosis of ${diagnosis.primaryType} with ${Math.round(diagnosis.confidence * 100)}% confidence, generate 5 specific, actionable intervention strategies. Each should be concise (1-2 sentences) and practical for students. Return as a JSON array of strings.`
-        },
-        {
-          role: 'user',
-          content: `Diagnosis results: ${JSON.stringify(diagnosis)}. Generate 5 intervention plans.`
-        }
-      ];
+      const plans = await generateInterventionPlans(assessment);
+      setInterventionPlans(plans);
+      setProcessComplete(true);
+      setActiveTab("intervention");
+    } catch (error) {
+      const result = await handleAsyncError(
+        () => generateInterventionPlans(assessment),
+        { customMessage: ERROR_MESSAGES.intervention.generate }
+      );
       
-      const response = await sendMessageToAPI(messages);
-      
-      // Clean up the response - remove markdown formatting if present
-      let cleanResponse = response;
-      if (response.includes('```json')) {
-        cleanResponse = response.replace(/```json\n?/g, '').replace(/```$/g, '');
+      if (!result.success) {
+        setErrorMessage(result.error || ERROR_MESSAGES.intervention.generate);
+        return;
       }
       
-      const plans = JSON.parse(cleanResponse);
-      const finalPlans = Array.isArray(plans) ? plans : [];
-      
-      // Set the intervention plans state
-      setInterventionPlans(finalPlans);
-      
-      // Mark process as complete
+      // If we got here, the async function succeeded
+      const plans = result.data!;
+      setInterventionPlans(plans);
       setProcessComplete(true);
-      
-      return finalPlans;
-    } catch (error) {
-      console.error('Error generating intervention plans:', error);
-      setInterventionPlans([]);
-      return [];
+      setActiveTab("intervention");
     } finally {
       setLoadingInterventions(false);
     }
@@ -609,8 +431,17 @@ export default function StuckApp() {
 
   async function saveSession(): Promise<void> {
     const completeAnswers = asCompleteAnswers(getLatestDiagnosticAnswers());
-    if (!diagnosis || !plan || !completeAnswers) {
-      setErrorMessage("Diagnosis is incomplete. Finish diagnosis before saving.");
+    if (!assessment || !plan || !completeAnswers) {
+      setErrorMessage("Assessment is incomplete. Finish assessment before saving.");
+      return;
+    }
+
+    // Generate session signature based on answers
+    const sessionSignature = generateSessionSignature(completeAnswers);
+    
+    // Check if this session already exists
+    if (doesSessionExist(sessionKey) || doesSessionExist(sessionSignature)) {
+      setNotice("This session has already been saved.");
       return;
     }
 
@@ -625,42 +456,39 @@ export default function StuckApp() {
         : `${plan.stuckType}:initial`;
 
     const sessionRecord: SessionRecord = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `session-${Date.now()}`,
-      userId: user?.uid || "anonymous",
+      id: crypto.randomUUID(),
+      userId: "user", // TODO: Get actual user ID
       timestamp: now,
-      stuckType: diagnosis.primaryType,
-      diagnosis,
+      stuckType: assessment.primaryType,
+      diagnosis: {
+        ...assessment,
+        summary: `${assessment.summary} [SessionKey: ${sessionKey}]` // Embed session key in summary
+      },
       interventionPlan: plan,
       outcome: selectedOutcome,
-      durationMinutes: 0,
-      distortions: [],
-      safetyFlags: [],
+      durationMinutes: Math.floor((Date.now() - sessionStartTime) / 60000),
+      distortions: [], // TODO: Calculate distortions
+      safetyFlags: [], // TODO: Check for safety flags
     };
 
-    try {
-      // Save to local storage instead of Firebase
-      if (user) {
-        const sessions = [sessionRecord, ...history].slice(0, MAX_HISTORY);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-      }
-      
-      const updatedHistory = [sessionRecord, ...history].slice(0, MAX_HISTORY);
-      setHistory(updatedHistory);
+    const updatedHistory = [...history, sessionRecord];
+    await addToHistory(sessionRecord);
 
-      const refreshed = await requestDiagnosis(completeAnswers, updatedHistory);
-      if (refreshed.status === "diagnosed") {
-        setInsights(refreshed.insights);
-        setProfile(refreshed.profile);
+    try {
+      const response = await requestAssessment(completeAnswers, history);
+      if (response.status === "diagnosed") {
+        setInsights(response.insights);
+        setProfile(response.profile);
       }
       setNotice(
-        `Session saved as "${OUTCOME_LABELS[selectedOutcome]}". ${user ? 'Saved to your account.' : 'Sign in to save your sessions permanently.'}`,
+        `Session saved as "${OUTCOME_LABELS[selectedOutcome]}".`,
       );
     } catch (error) {
-      console.error("Error saving session:", error);
-      setErrorMessage("Failed to save session. Please try again.");
+      const errorMessage = await handleAsyncError(
+        () => requestAssessment(completeAnswers, updatedHistory),
+        { customMessage: ERROR_MESSAGES.session.save }
+      );
+      setErrorMessage(errorMessage.error || ERROR_MESSAGES.session.save);
     } finally {
       setSaving(false);
     }
@@ -674,694 +502,112 @@ export default function StuckApp() {
     setCurrentQuestionIndex(0);
     setGeminiQuestions([]);
     setCurrentGeminiIndex(0);
-    setWordEmbeddingResults({});
-    setShowIntroduction(false); // Reset introduction state
-    setProcessComplete(false); // Reset process completion
+    setShowIntroduction(false);
+    setProcessComplete(false);
     resetResultState();
+    setSessionKey(""); // Clear session key
     setErrorMessage("");
     setNotice("");
   }
 
   async function clearHistory(): Promise<void> {
     try {
-      // Clear from local storage instead of Firebase
-      localStorage.removeItem(STORAGE_KEY);
-      setHistory([]);
+      await clearHistoryHook();
       setNotice("History cleared.");
     } catch (error) {
-      console.error("Error clearing history:", error);
-      setErrorMessage("Failed to clear history. Please try again.");
+      const errorMessage = await handleAsyncError(
+        () => clearHistoryHook(),
+        { customMessage: "Failed to clear history. Please try again." }
+      );
+      setErrorMessage(errorMessage.error || "Failed to clear history. Please try again.");
     }
   }
-
-  const recentHistory = history.slice(0, 6);
 
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
-        <header className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <Image
-                src="/images/stuck-logo.png"
-                alt="Unstuck logo"
-                width={126}
-                height={102}
-                className="h-16 w-auto rounded-xl border border-emerald-800 bg-white p-1"
-              />
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-                  Unstuck
-                </h1>
-                <p className="text-sm text-emerald-200 md:text-base">
-                  App for academic paralysis.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {user ? (
-                <>
-                  <div className="flex items-center gap-2 text-sm text-emerald-200">
-                    <User className="h-4 w-4" />
-                    <span>{user.email}</span>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="flex items-center gap-2 rounded-lg border border-rose-700 px-3 py-2 text-sm text-rose-200 hover:border-rose-500 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      setAuthMode('signin');
-                      setShowAuthModal(true);
-                    }}
-                    className="flex items-center gap-2 rounded-lg border border-lime-700 px-3 py-2 text-sm text-lime-200 hover:border-lime-500 transition-colors"
-                  >
-                    <User className="h-4 w-4" />
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAuthMode('signup');
-                      setShowAuthModal(true);
-                    }}
-                    className="flex items-center gap-2 rounded-lg bg-lime-300 px-3 py-2 text-sm text-emerald-950 hover:bg-lime-200 transition-colors"
-                  >
-                    Sign Up
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </header>
+        <Header />
 
-        {processComplete && (
-          <div className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4">
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(TAB_LABELS) as AppTab[]).map((tabKey) => {
-                const selected = activeTab === tabKey;
+        <Navigation
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          processComplete={processComplete}
+          onClearHistory={clearHistory}
+        />
 
-                return (
-                  <button
-                    key={tabKey}
-                    type="button"
-                    onClick={() => setActiveTab(tabKey)}
-                    className={`rounded-lg border px-3 py-2 text-sm ${
-                      selected
-                        ? "border-lime-300 bg-lime-300/20"
-                        : "border-emerald-800 hover:border-lime-500"
-                    }`}
-                  >
-                    {TAB_LABELS[tabKey]}
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => clearHistory()}
-                className="rounded-lg border border-rose-700 px-3 py-2 text-sm text-rose-200 hover:border-rose-500"
-              >
-                Clear History
-              </button>
-            </div>
-          </div>
-        )}
-
-        {errorMessage ? (
-          <div className="rounded-xl border border-rose-700 bg-rose-950/60 px-4 py-3 text-sm text-rose-200">
-            {errorMessage}
-          </div>
-        ) : null}
-        {notice ? (
-          <div className="rounded-xl border border-emerald-700 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-200">
-            {notice}
-          </div>
-        ) : null}
+        <Alerts errorMessage={errorMessage} notice={notice} />
 
         <section className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-5 md:p-6">
-          {activeTab === "home" ? (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <h2 className="text-xl font-semibold">Start When You Freeze</h2>
-                <p className="max-w-3xl text-sm text-emerald-200 md:text-base">
-                  Feeling stuck on your academic work? Let us help you identify what&apos;s holding you back.
-                </p>
-              </div>
+          {activeTab === "home" && (
+            <HomeTab loading={loading} onBeginDiagnosis={beginAssessment} />
+          )}
 
-              <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-                <Image
-                  src="/images/diagnosis-flow.svg"
-                  alt="Diagnosis flow diagram"
-                  width={920}
-                  height={220}
-                  className="h-auto w-full rounded-lg border border-emerald-900"
-                />
-              </div>
+          {activeTab === "introduction" && (
+            <IntroductionTab
+              loading={loading}
+              onStartQuestionnaire={startQuestionnaire}
+              onResetToHome={resetToHome}
+            />
+          )}
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={beginDiagnosis}
-                  disabled={loading}
-                  className="rounded-2xl bg-lime-300 px-12 py-8 text-xl font-bold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
-                >
-                  {loading ? "Starting..." : "I'M STUCK"}
-                </button>
-              </div>
-            </div>
-          ) : null}
+          {activeTab === "questionnaire" && (
+            <QuestionnaireTab
+              questionQueue={questionQueue}
+              currentQuestionIndex={currentQuestionIndex}
+              answers={answers}
+              openResponses={openResponses}
+              geminiQuestions={geminiQuestions}
+              currentGeminiIndex={currentGeminiIndex}
+              loading={loading}
+              answeredCount={answeredCount}
+              progressPercent={progressPercent}
+              onUpdateAnswer={updateAnswer}
+              onUpdateOpenResponse={updateOpenResponse}
+              onHandleNextQuestion={handleNextQuestion}
+              onHandlePreviousQuestion={handlePreviousQuestion}
+              onResetToHome={resetToHome}
+              onBeginDiagnosis={beginAssessment}
+            />
+          )}
 
-          {activeTab === "introduction" ? (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="text-center space-y-3">
-                  <h2 className="text-2xl font-semibold">What This App Does</h2>
-                  <div className="mx-auto w-16 h-1 bg-lime-300 rounded-full"></div>
-                </div>
-                
-                <div className="space-y-4 text-emerald-200">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">1</div>
-                    <div>
-                      <h3 className="font-semibold text-emerald-100">Quick Diagnosis</h3>
-                      <p className="text-sm">We ask 5 research-based questions to understand why you&apos;re stuck</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">2</div>
-                    <div>
-                      <h3 className="font-semibold text-emerald-100">Smart Analysis</h3>
-                      <p className="text-sm">Our algorithm analyzes your responses to identify your specific type of academic paralysis</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">3</div>
-                    <div>
-                      <h3 className="font-semibold text-emerald-100">Personalized Plan</h3>
-                      <p className="text-sm">Get a customized intervention plan with specific steps to get you unstuck</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="rounded-xl border border-lime-600/50 bg-lime-950/30 p-4">
-                  <h3 className="text-lg font-semibold text-lime-200 mb-2">About the Questionnaire</h3>
-                  <p className="text-sm text-emerald-200">
-                    This brief questionnaire helps diagnose academic paralysis - that feeling when you know what you need to do but can&apos;t seem to start.
-                    Based on research with students and professors, we identify patterns that keep you stuck.
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={startQuestionnaire}
-                  disabled={loading}
-                  className="rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? "Starting..." : "Start Questionnaire"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetToHome}
-                  className="rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                >
-                  Back to Home
-                </button>
-              </div>
-            </div>
-          ) : null}
+          {activeTab === "result" && (
+            <ResultTab
+              diagnosis={assessment}
+              loadingInterventions={loadingInterventions}
+              onGenerateInterventions={handleGenerateInterventions}
+              onNavigateToIntervention={() => setActiveTab("intervention")}
+            />
+          )}
 
-          {activeTab === "questionnaire" ? (
-            <div className="space-y-5">
-              <div className="flex flex-col gap-3 rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-                <div className="flex items-center justify-between text-xs text-emerald-300">
-                  <span>Adaptive Questionnaire</span>
-                  <span>
-                    {answeredCount}/{questionQueue.length} answered
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-emerald-900">
-                  <div
-                    className="h-full rounded-full bg-lime-300 transition-all"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
+          {activeTab === "intervention" && (
+            <InterventionTab
+              loadingInterventions={loadingInterventions}
+              interventionPlans={interventionPlans}
+              saving={saving}
+              onSaveSession={saveSession}
+              onNavigateToResult={() => setActiveTab("result")}
+              onBeginDiagnosis={beginAssessment}
+            />
+          )}
 
-              {currentQuestion ? (
-                <div className="space-y-4 rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 md:p-5">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-lime-200">
-                      {geminiQuestions.length > 0 
-                        ? `Follow-up Question ${currentGeminiIndex + 1} of ${geminiQuestions.length}`
-                        : `Question ${currentQuestionIndex + 1} of ${questionQueue.length}`
-                      }
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold">
-                      {geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
-                        ? geminiQuestions[currentGeminiIndex].prompt
-                        : currentQuestion.prompt
-                      }
-                    </h3>
-                    {currentQuestion.helperText ? (
-                      <p className="mt-1 text-sm text-emerald-300">
-                        {currentQuestion.helperText}
-                      </p>
-                    ) : null}
-                  </div>
+          {activeTab === "insights" && (
+            <InsightsTab
+              insights={insights}
+              profile={profile}
+              onNavigateToHistory={() => setActiveTab("history")}
+              onNavigateToResult={() => setActiveTab("result")}
+              hasDiagnosis={!!assessment && !!plan}
+            />
+          )}
 
-                  {/* Slider for slider-type questions */}
-                  {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]?.kind === "slider"
-                    ? geminiQuestions[currentGeminiIndex]
-                    : currentQuestion?.kind === "slider" ? currentQuestion : null) ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <input
-                          type="range"
-                          min={currentQuestion?.slider?.min ?? 0}
-                          max={currentQuestion?.slider?.max ?? 100}
-                          step={currentQuestion?.slider?.step ?? 1}
-                          value={answers[currentQuestion?.id] ?? currentQuestion?.slider?.min ?? 0}
-                          onChange={(e) => currentQuestion && updateAnswer(currentQuestion.id, e.target.value)}
-                          className="w-full h-2 bg-emerald-900 rounded-lg appearance-none cursor-pointer accent-lime-300"
-                        />
-                      </div>
-                      {currentQuestion?.slider?.marks && (
-                        <div className="flex justify-between text-xs text-emerald-400">
-                          {currentQuestion.slider.marks.map((mark) => (
-                            <span key={mark.value}>{mark.label}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Button options for non-slider questions */
-                    <div className="grid gap-3">
-                      {(geminiQuestions.length > 0 && geminiQuestions[currentGeminiIndex]
-                        ? geminiQuestions[currentGeminiIndex].options
-                        : currentQuestion.options
-                      ).map((option) => {
-                        const currentQ = geminiQuestions.length > 0 ? geminiQuestions[currentGeminiIndex] : currentQuestion;
-                        const isSelected = answers[currentQ?.id] === option.value;
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => currentQ && updateAnswer(currentQ.id, option.value)}
-                            className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
-                              isSelected
-                                ? "border-lime-300 bg-lime-300/20"
-                                : "border-emerald-800 bg-emerald-900 hover:border-lime-500"
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Open Response Box for Base Questions */}
-                  {geminiQuestions.length === 0 && !currentQuestion?.slider && (
-                    <div className="mt-4 space-y-2 rounded-lg border border-emerald-800 bg-emerald-900/40 p-3">
-                      <label htmlFor={`open-response-${currentQuestion?.id}`} className="block text-xs font-semibold uppercase tracking-wide text-emerald-300">
-                        Write your response here (at least 19 characters)
-                      </label>
-                      <textarea
-                        id={`open-response-${currentQuestion?.id}`}
-                        value={openResponses[currentQuestion?.id] || ""}
-                        onChange={(e) => updateOpenResponse(currentQuestion?.id, e.target.value)}
-                        placeholder="Share any additional context or thoughts about your response..."
-                        className="w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-emerald-100 outline-none ring-lime-300 focus:ring placeholder:text-emerald-600"
-                        rows={3}
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={handlePreviousQuestion}
-                      disabled={
-                        loading ||
-                        (geminiQuestions.length > 0
-                          ? currentGeminiIndex === 0
-                          : currentQuestionIndex === 0)
-                      }
-                      className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNextQuestion}
-                      disabled={
-                        loading ||
-                        (geminiQuestions.length === 0
-                          ? currentQuestion?.kind === "slider"
-                            ? answers[currentQuestion.id] === undefined
-                            : (openResponses[currentQuestion?.id] || "").length < 19
-                          : !geminiQuestions[currentGeminiIndex] ||
-                            answers[geminiQuestions[currentGeminiIndex].id] === undefined)
-                      }
-                      className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {loading ? "Thinking..." : "Next"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetToHome}
-                      className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                    >
-                      Restart
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 text-sm text-emerald-200">
-                  <p>No active diagnosis session yet.</p>
-                  <button
-                    type="button"
-                    onClick={beginDiagnosis}
-                    disabled={loading}
-                    className="mt-3 rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loading ? "Starting..." : "Start Diagnosis"}
-                  </button>
-                </div>
-              )}
-
-              <div className="grid gap-2 rounded-xl border border-emerald-900 bg-emerald-950/60 p-4">
-                <p className="text-xs uppercase tracking-wide text-emerald-300">
-                  Question Navigator
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {questionQueue.map((question, index) => {
-                    const answered = answers[question.id] !== undefined;
-                    const selected = index === currentQuestionIndex;
-
-                    return (
-                      <button
-                        key={question.id}
-                        type="button"
-                        onClick={() => setCurrentQuestionIndex(index)}
-                        className={`rounded-md border px-3 py-1.5 text-xs ${
-                          selected
-                            ? "border-lime-300 bg-lime-300/20"
-                            : answered
-                              ? "border-lime-500 bg-lime-900/20"
-                              : "border-emerald-800 hover:border-lime-500"
-                        }`}
-                      >
-                        {index + 1}. {QUESTION_TITLES[question.id]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {activeTab === "result" ? (
-            <div className="space-y-5">
-              {diagnosis ? (
-                <>
-                  <div className="rounded-xl border border-lime-600/50 bg-lime-950/30 p-6">
-                    <div className="text-center space-y-4">
-                      <p className="text-xs uppercase tracking-wide text-lime-200">
-                        —----------Diagnosis—----------------
-                      </p>
-                      <h2 className="text-3xl font-bold text-lime-200">
-                        {STUCK_TYPE_LABELS[diagnosis.primaryType]}
-                      </h2>
-                    </div>
-                    
-                    <div className="mt-6 space-y-3">
-                      <h3 className="text-lg font-semibold text-emerald-100">Overall confidence levels for each stuck type</h3>
-                      <div className="space-y-2">
-                        {diagnosis.rankedTypes
-                          .sort((a, b) => b.normalized - a.normalized)
-                          .map((item, index) => (
-                            <div key={item.type} className="flex items-center justify-between p-3 rounded-lg border border-emerald-800 bg-emerald-950/40">
-                              <div className="flex items-center space-x-3">
-                                <span className="text-lime-200 font-semibold">#{index + 1}</span>
-                                <span className="text-emerald-100">{STUCK_TYPE_LABELS[item.type]}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <div className="w-24 h-2 bg-emerald-900 rounded-full">
-                                  <div 
-                                    className="h-full bg-lime-300 rounded-full" 
-                                    style={{ width: `${Math.round(item.normalized * 100)}%` }}
-                                  />
-                                </div>
-                                <span className="text-emerald-200 text-sm w-12 text-right">
-                                  {Math.round(item.normalized * 100)}%
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6 text-center space-y-3">
-                      <p className="text-xs uppercase tracking-wide text-lime-200">
-                        —-----Very Brief Summary—--------
-                      </p>
-                      <p className="text-emerald-100 text-sm leading-relaxed">
-                        {diagnosis.summary}
-                      </p>
-                    </div>
-                    
-                    <div className="mt-6 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("intervention")}
-                        className="rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-lime-200 transition-colors"
-                      >
-                        Do you want to change this?
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await generateInterventionPlans(diagnosis);
-                        setActiveTab("intervention");
-                      }}
-                      disabled={loadingInterventions}
-                      className="rounded-xl bg-lime-300 px-8 py-4 text-lg font-bold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
-                    >
-                      {loadingInterventions ? "Loading..." : "What's the plan?"}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-xl border border-emerald-900 bg-emerald-950/60 p-4 text-sm text-emerald-200">
-                  No diagnosis found. Complete the questionnaire to see your results.
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {activeTab === "intervention" ? (
-            <div className="space-y-6">
-              <div className="text-center space-y-4">
-                <h2 className="text-2xl font-semibold">Intervention Plans</h2>
-                <p className="text-emerald-200">Generating personalized strategies based on your diagnosis...</p>
-              </div>
-              
-              {loadingInterventions ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-lime-300"></div>
-                  <p className="mt-4 text-emerald-200">This will take a second to load intervention plans...</p>
-                </div>
-              ) : interventionPlans.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-lime-600/50 bg-lime-950/30 p-6">
-                    <h3 className="text-lg font-semibold text-lime-200 mb-4">Your Personalized Intervention Plans</h3>
-                    <div className="space-y-3">
-                      {interventionPlans.map((plan, index) => (
-                        <div key={index} className="p-4 rounded-lg border border-emerald-800 bg-emerald-950/60">
-                          <div className="flex items-start space-x-3">
-                            <span className="flex-shrink-0 w-6 h-6 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">{index + 1}</span>
-                            <p className="text-emerald-100">{plan}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="text-center space-y-3">
-                    <button
-                      type="button"
-                      onClick={saveSession}
-                      disabled={saving}
-                      className="rounded-xl bg-lime-300 px-8 py-4 text-lg font-bold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
-                    >
-                      {saving ? "Saving..." : "Save Diagnosis & Plans"}
-                    </button>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("result")}
-                      className="rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                    >
-                      Back to Diagnosis
-                    </button>
-                    <button
-                      type="button"
-                      onClick={beginDiagnosis}
-                      disabled={loading}
-                      className="rounded-xl bg-lime-300 px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {loading ? "Starting..." : "New Diagnosis"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-emerald-200">No intervention plans available. Please complete the diagnosis first.</p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("result")}
-                    className="mt-4 rounded-xl border border-emerald-800 px-6 py-3 text-sm hover:border-lime-500"
-                  >
-                    Back to Diagnosis
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {activeTab === "insights" ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
-                  Insights
-                </h3>
-                {insights.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {insights.map((insight, index) => (
-                      <div
-                        key={`insight-${index}`}
-                        className="rounded-lg border border-emerald-800 bg-emerald-950/60 p-3"
-                      >
-                        <p className="text-xs text-emerald-300">
-                          {insight.type} (Severity: {insight.severity})
-                        </p>
-                        <p className="mt-1 text-sm">{insight.description}</p>
-                        <p className="mt-1 text-xs text-emerald-400">→ {insight.recommendation}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-emerald-300">
-                    Save sessions to generate behavioral insights.
-                  </p>
-                )}
-
-                {profile ? (
-                  <div className="mt-4 rounded-lg border border-emerald-800 bg-emerald-950/60 p-3">
-                    <p className="text-xs text-emerald-300">Profile Summary</p>
-                    <p className="mt-1 text-sm">Sessions: {profile.totalSessions}</p>
-                    <p className="text-sm">
-                      Avg stuck time: {Math.round(profile.averageTimeStuckMinutes)} min
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("history")}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                >
-                  Open History Tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("result")}
-                  disabled={!diagnosis || !plan}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Back To Plan Tab
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {activeTab === "history" ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-200">
-                  Recent Sessions
-                </h3>
-
-                {recentHistory.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {recentHistory.map((session) => (
-                      <button
-                        key={session.id}
-                        type="button"
-                        onClick={() => {
-                          setNotice(`Reviewing ${STUCK_TYPE_LABELS[session.stuckType]} session.`);
-                        }}
-                        className="w-full rounded-lg border border-emerald-800 bg-emerald-950/60 p-3 text-left hover:border-lime-500"
-                      >
-                        <p className="text-sm">
-                          {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
-                          {OUTCOME_LABELS[session.outcome]}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-emerald-300">
-                    No saved sessions yet.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("insights")}
-                  className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-                >
-                  Open Insights Tab
-                </button>
-              </div>
-            </div>
-          ) : null}
+          {activeTab === "history" && (
+            <HistoryTab
+              history={history}
+              onNavigateToInsights={() => setActiveTab("insights")}
+            />
+          )}
         </section>
       </div>
-
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-md">
-            <AuthForm 
-              onClose={() => setShowAuthModal(false)} 
-              initialMode={authMode}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

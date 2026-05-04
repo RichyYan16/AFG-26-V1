@@ -53,13 +53,6 @@ function validatePayload(
 
 export async function POST(req: Request) {
   try {
-    // Check API key
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
 
     const body = await req.json();
     const validation = validatePayload(body);

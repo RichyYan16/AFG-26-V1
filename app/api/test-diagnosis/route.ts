@@ -14,17 +14,6 @@ import type { DiagnosticAnswers } from "@/model/new/types";
 
 export async function GET(request: Request) {
   try {
-    // Check API key
-    if (!process.env.GEMINI_API_KEY) {
-      return Response.json(
-        {
-          error: "GEMINI_API_KEY not set",
-          instructions:
-            "Set GEMINI_API_KEY in .env.local and restart the server",
-        },
-        { status: 500 }
-      );
-    }
 
     console.log(" Running Stuck Diagnosis Model Test\n");
 

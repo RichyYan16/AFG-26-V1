@@ -63,16 +63,6 @@ export {
 } from "./questions";
 
 // ============================================
-// GEMINI INTEGRATION EXPORTS
-// ============================================
-export type { DiagnosisFromGemini, InterventionFromGemini } from "./geminiIntegration";
-export {
-  refineDiagnosisWithGemini,
-  generateFollowUpQuestions,
-  generateInterventionPlan,
-} from "./geminiIntegration";
-
-// ============================================
 // INTERVENTION GENERATOR EXPORTS
 // ============================================
 export {

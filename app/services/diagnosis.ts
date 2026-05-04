@@ -30,8 +30,77 @@ export function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Reco
 
 // Generate follow-up questions based on initial responses
 export async function generateFollowUpQuestions(answers: Partial<DiagnosticAnswers>): Promise<AdaptiveQuestion[]> {
-  // Return fallback questions for now
-  return getFallbackQuestions();
+  console.log("🔄 generateFollowUpQuestions called with:", answers);
+  try {
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: `You are an expert academic coach helping students identify why they're stuck on assignments. 
+Based on the student's responses, generate 5 targeted follow-up questions to better understand their specific stuck pattern.
+Each question should help distinguish between different types of academic paralysis: confusion, ambiguity, fear, overwhelm, exhaustion, or perfection_loop.
+
+Return your response as a JSON array of questions with this exact format:
+[
+  {
+    "id": "follow_up_1",
+    "prompt": "Your question text here",
+    "options": [
+      {"value": "option1", "label": "First option"},
+      {"value": "option2", "label": "Second option"},
+      {"value": "option3", "label": "Third option"},
+      {"value": "option4", "label": "Fourth option"}
+    ]
+  }
+]
+
+Make questions specific, insightful, and designed to reveal the underlying stuck pattern.`
+      },
+      {
+        role: "user",
+        content: `Student responses:
+Internal Voice: "${answers.internalVoice || 'Not provided'}"
+80% Thought: "${answers.eightyPercentThought || 'Not provided'}"
+Why Best Work: "${answers.whyBestWork || 'Not provided'}"
+Avoidance Duration: "${answers.avoidanceDuration || 'Not provided'} minutes"
+Help Seeking: "${answers.helpSeeking || 'Not provided'}"
+
+Please generate 5 follow-up questions to better understand this student's stuck pattern.`
+      }
+    ];
+
+    const response = await sendMessageToAPI(messages);
+    console.log("📥 API response received:", response);
+    
+    // Try to parse the JSON response
+    try {
+      const parsedResponse = JSON.parse(response);
+      console.log("✅ Successfully parsed API response:", parsedResponse);
+      if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
+        const result = parsedResponse.map((q, index) => ({
+          id: q.id || `follow_up_${index + 1}` as AdaptiveQuestion["id"],
+          prompt: q.prompt || q.question || `Follow-up question ${index + 1}`,
+          options: Array.isArray(q.options) ? q.options : [
+            { value: 'option1', label: 'Option 1' },
+            { value: 'option2', label: 'Option 2' },
+            { value: 'option3', label: 'Option 3' },
+            { value: 'option4', label: 'Option 4' }
+          ]
+        }));
+        console.log("🎯 Returning API-generated questions:", result);
+        return result;
+      }
+    } catch (parseError) {
+      console.warn("❌ Failed to parse API response as JSON, using fallback:", parseError);
+    }
+    
+    // If we get here, parsing failed, so use fallback
+    console.log("🔄 Using fallback questions");
+    return getFallbackQuestions();
+    
+  } catch (error) {
+    console.error("💥 API call failed for generateFollowUpQuestions, using fallback:", error);
+    return getFallbackQuestions();
+  }
 }
 
 // Fallback questions when Gemini API fails
@@ -90,10 +159,69 @@ function getFallbackQuestions(): AdaptiveQuestion[] {
   ];
 }
 
-// Generate intervention plans using fallback logic
+// Generate intervention plans using API with fallback logic
 export async function generateInterventionPlans(assessment: DiagnosisResult): Promise<Array<{action: string; resources?: string[]}>> {
-  // Return fallback intervention plans for now
-  return getFallbackInterventionPlans(assessment.primaryType);
+  console.log("🔄 generateInterventionPlans called with:", assessment.primaryType);
+  try {
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: `You are an expert academic coach specializing in helping students overcome academic paralysis.
+Based on the student's assessment, generate 5 specific, actionable intervention strategies tailored to their stuck type.
+Each strategy should be practical, evidence-based, and include relevant resources.
+
+Return your response as a JSON array with this exact format:
+[
+  {
+    "action": "Specific actionable step the student should take",
+    "resources": ["Resource 1", "Resource 2", "Resource 3", "Resource 4"]
+  }
+]
+
+Make interventions specific to the stuck type: confusion, ambiguity, fear, overwhelm, exhaustion, or perfection_loop.
+Focus on practical, immediate actions students can take.`
+      },
+      {
+        role: "user",
+        content: `Student Assessment:
+Primary Stuck Type: ${assessment.primaryType}
+Confidence: ${assessment.confidence}
+Summary: ${assessment.summary}
+
+Ranked Types:
+${assessment.rankedTypes.map((type, index) => `${index + 1}. ${type.type} (score: ${type.score}): ${type.reasons.join(', ')}`).join('\n')}
+
+Please generate 5 specific intervention strategies for this student's ${assessment.primaryType} pattern.`
+      }
+    ];
+
+    const response = await sendMessageToAPI(messages);
+    console.log("📥 Intervention API response received:", response);
+    
+    // Try to parse the JSON response
+    try {
+      const parsedResponse = JSON.parse(response);
+      console.log("✅ Successfully parsed intervention API response:", parsedResponse);
+      if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
+        const result = parsedResponse.map((intervention) => ({
+          action: intervention.action || intervention.strategy || "Default intervention action",
+          resources: Array.isArray(intervention.resources) ? intervention.resources : []
+        }));
+        console.log("🎯 Returning API-generated interventions:", result);
+        return result;
+      }
+    } catch (parseError) {
+      console.warn("❌ Failed to parse intervention API response as JSON, using fallback:", parseError);
+    }
+    
+    // If we get here, parsing failed, so use fallback
+    console.log("🔄 Using fallback interventions");
+    return getFallbackInterventionPlans(assessment.primaryType);
+    
+  } catch (error) {
+    console.error("💥 API call failed for generateInterventionPlans, using fallback:", error);
+    return getFallbackInterventionPlans(assessment.primaryType);
+  }
 }
 
 // Fallback intervention plans

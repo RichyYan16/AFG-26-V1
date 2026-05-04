@@ -185,6 +185,13 @@ export interface SessionRecord {
   durationMinutes: number;
   distortions: DistortionHit[];
   safetyFlags: string[];
+  sessionSummary?: {
+    stuckType: StuckType;
+    confidence: number;
+    primaryPlanHeadline: string;
+    estimatedTimeMinutes: number;
+    sessionKey: string;
+  };
 }
 
 // ============================================

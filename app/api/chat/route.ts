@@ -97,8 +97,8 @@ export async function POST(req: Request) {
   }
 }
 
-async function callOpenRouter(messages: ChatMessage[], apiKey: string): Promise<NextResponse> {
-  const response = await fetch(OPENROUTER_API_URL, {
+async function callOpenRouterWithModel(messages: ChatMessage[], apiKey: string, model: string): Promise<Response> {
+  return fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -107,25 +107,59 @@ async function callOpenRouter(messages: ChatMessage[], apiKey: string): Promise<
       "X-Title": "Academic Paralysis Assessment",
     },
     body: JSON.stringify({
-      model: "anthropic/claude-3.5-sonnet",
+      model: model,
       messages: messages,
       temperature: 0.7,
       max_tokens: 50000,
     }),
   });
+}
 
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`OpenRouter API error: ${response.status} - ${details}`);
+async function callOpenRouter(messages: ChatMessage[], apiKey: string): Promise<NextResponse> {
+  // List of models to try in order of preference
+  const models = [
+    "meta-llama/llama-3.2-3b-instruct:free",
+    "microsoft/phi-3-medium-128k-instruct:free",
+    "qwen/qwen-2.5-7b-instruct:free", 
+    "deepseek/deepseek-chat:free",
+    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "huggingfaceh4/zephyr-7b-beta:free",
+    "openai/gpt-4o-mini",
+    "anthropic/claude-3-haiku"
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    try {
+      console.log(`Trying model: ${model}`);
+      const response = await callOpenRouterWithModel(messages, apiKey, model);
+
+      if (response.ok) {
+        console.log(`Successfully using model: ${model}`);
+        const data = (await response.json()) as OpenRouterContent;
+        const text = data.choices?.[0]?.message?.content;
+
+        if (!text) {
+          throw new Error("No response from OpenRouter API");
+        }
+
+        return NextResponse.json({ text }, { status: 200 });
+      } else {
+        const details = await response.text();
+        lastError = new Error(`Model ${model} failed: ${response.status} - ${details}`);
+        console.warn(`Model ${model} failed:`, details);
+        continue; // Try next model
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`Model ${model} error:`, lastError.message);
+      continue; // Try next model
+    }
   }
 
-  const data = (await response.json()) as OpenRouterContent;
-  const text = data.choices?.[0]?.message?.content;
-
-  if (!text) {
-    throw new Error("No response from OpenRouter API");
-  }
-
-  return NextResponse.json({ text }, { status: 200 });
+  // All models failed
+  throw lastError || new Error("All models failed");
 }
 

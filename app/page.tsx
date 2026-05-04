@@ -67,6 +67,7 @@ export default function StuckApp() {
   const [processComplete, setProcessComplete] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const [sessionKey, setSessionKey] = useState<string>("");
+  const [noticeTimer, setNoticeTimer] = useState<NodeJS.Timeout | null>(null);
 
   const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
   const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
@@ -75,6 +76,44 @@ export default function StuckApp() {
   useEffect(() => {
     initializeCache();
   }, []);
+
+  // Auto-clear notices after 5 seconds
+  useEffect(() => {
+    if (notice) {
+      // Clear any existing timer
+      if (noticeTimer) {
+        clearTimeout(noticeTimer);
+      }
+      
+      // Set new timer to clear notice after 5 seconds
+      const timer = setTimeout(() => {
+        setNotice("");
+        setNoticeTimer(null);
+      }, 5000);
+      
+      setNoticeTimer(timer);
+      
+      // Cleanup function
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      // Clear timer if notice is empty
+      if (noticeTimer) {
+        clearTimeout(noticeTimer);
+        setNoticeTimer(null);
+      }
+    }
+  }, [notice]);
+
+  // Cleanup notice timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (noticeTimer) {
+        clearTimeout(noticeTimer);
+      }
+    };
+  }, [noticeTimer]);
 
   const currentQuestion = questionQueue[currentQuestionIndex] ?? null;
 
@@ -114,9 +153,10 @@ export default function StuckApp() {
   // Check if session with this key already exists in history
   function doesSessionExist(sessionKeyToCheck: string): boolean {
     return history.some(session => 
-      session.diagnosis && 
-      session.diagnosis.summary && 
-      session.diagnosis.summary.includes(sessionKeyToCheck)
+      session.sessionSummary?.sessionKey === sessionKeyToCheck ||
+      (session.diagnosis && 
+       session.diagnosis.summary && 
+       session.diagnosis.summary.includes(sessionKeyToCheck))
     );
   }
 
@@ -469,6 +509,13 @@ export default function StuckApp() {
       durationMinutes: Math.floor((Date.now() - sessionStartTime) / 60000),
       distortions: [], // TODO: Calculate distortions
       safetyFlags: [], // TODO: Check for safety flags
+      sessionSummary: {
+        stuckType: assessment.primaryType,
+        confidence: assessment.confidence,
+        primaryPlanHeadline: `${plan.headline} - ${plan.whyItWorks}`,
+        estimatedTimeMinutes: plan.estimatedTotalMinutes,
+        sessionKey: sessionKey
+      }
     };
 
     const updatedHistory = [...history, sessionRecord];
@@ -508,6 +555,11 @@ export default function StuckApp() {
     setSessionKey(""); // Clear session key
     setErrorMessage("");
     setNotice("");
+    // Clear notice timer
+    if (noticeTimer) {
+      clearTimeout(noticeTimer);
+      setNoticeTimer(null);
+    }
   }
 
   async function clearHistory(): Promise<void> {

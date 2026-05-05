@@ -9,7 +9,7 @@ import {
   buildMultipleInterventionPlans,
   detectThoughtDistortions,
   buildSafetyFlags,
-} from "@/model/new/index.js";
+} from "@/model/new/index";
 
 /**
  * GET /api/test-diagnosis

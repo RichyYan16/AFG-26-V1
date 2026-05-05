@@ -221,7 +221,7 @@ rankedTypes.forEach((r) => {
 console.log("\n STEP 8: Generate Multiple Intervention Plans");
 console.log("─".repeat(80));
 console.log(
-  "⏳ Calling Gemini to generate personalized intervention strategies...\n"
+  "Calling Gemini to generate personalized intervention strategies...\n"
 );
 
 const interventionPlans = [
@@ -356,9 +356,9 @@ if (safetyFlags.length > 0) {
   safetyFlags.forEach((f) => {
     console.log(`  • ${f}`);
   });
-  console.log("  ℹ️  No critical intervention needed");
+  console.log("No critical intervention needed");
 } else {
-  console.log("   No safety concerns");
+  console.log("No safety concerns");
 }
 
 // ============================================================================

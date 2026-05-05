@@ -42,7 +42,7 @@ export function IntroductionTab({ loading, onStartQuestionnaire, onResetToHome }
         <div className="rounded-xl border border-lime-600/50 bg-lime-950/30 p-4">
           <h3 className="text-lg font-semibold text-lime-200 mb-2">About the Questionnaire</h3>
           <p className="text-sm text-emerald-200">
-            This brief questionnaire helps diagnose academic paralysis - that feeling when you know what you need to do but can&apos;t seem to start.
+            This brief questionnaire helps predict academic paralysis - that feeling when you know what you need to do but can&apos;t seem to start.
             Based on research with students and professors, we identify patterns that keep you stuck.
           </p>
         </div>

@@ -4,11 +4,11 @@ import {
   buildMultipleInterventionPlans,
   detectThoughtDistortions,
   buildSafetyFlags,
-} from "@/model/new/index.js";
+} from "@/model/new/index";
 import {
   isDiagnosticComplete,
   getAllDiagnosticQuestions,
-} from "@/model/new/questions.js";
+} from "@/model/new/questions";
 
 /**
  * @typedef {Object} DiagnoseRequest

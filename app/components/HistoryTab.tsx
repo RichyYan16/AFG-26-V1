@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { STUCK_TYPE_LABELS, OUTCOME_LABELS } from "../constants";
 import type { SessionRecord } from "@/model/new/types";
 
@@ -7,6 +8,7 @@ interface HistoryTabProps {
 }
 
 export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const recentHistory = history.slice(0, 6);
 
   return (
@@ -19,29 +21,68 @@ export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
         {recentHistory.length > 0 ? (
           <div className="mt-3 space-y-2">
             {recentHistory.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => {
-                  console.log(`Reviewing ${STUCK_TYPE_LABELS[session.stuckType]} session.`);
-                }}
-                className="w-full rounded-lg border border-emerald-800 bg-emerald-950/60 p-3 text-left hover:border-lime-500"
-              >
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">
-                    {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
-                    {OUTCOME_LABELS[session.outcome]}
-                  </p>
-                  {session.sessionSummary && (
-                    <div className="text-xs text-emerald-300 space-y-1">
-                      <p>Plan: {session.sessionSummary.primaryPlanHeadline}</p>
-                      <p>Confidence: {Math.round(session.sessionSummary.confidence * 100)}%</p>
-                      <p>Est. Time: {session.sessionSummary.estimatedTimeMinutes}min</p>
-                      <p>Session Key: {session.sessionSummary.sessionKey.substring(0, 12)}...</p>
-                    </div>
+              <div key={session.id} className="rounded-lg border border-emerald-800 bg-emerald-950/60">
+                <button
+                  type="button"
+                  onClick={() => setExpandedSession(
+                    expandedSession === session.id ? null : session.id
                   )}
-                </div>
-              </button>
+                  className="w-full p-3 text-left hover:border-lime-500 rounded-lg"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">
+                      {STUCK_TYPE_LABELS[session.stuckType]}
+                    </p>
+                    {session.sessionSummary && (
+                      <div className="text-xs text-emerald-300 space-y-1">
+                        <p>Plan: {session.sessionSummary.primaryPlanHeadline}</p>
+                        <p>Confidence: {Math.round(session.sessionSummary.confidence * 100)}%</p>
+                      </div>
+                    )}
+                  </div>
+                </button>
+                
+                {expandedSession === session.id && (
+                  <div className="border-t border-emerald-800 p-3 bg-emerald-950/40">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-emerald-200 mb-2">Full Intervention Plan</h4>
+                        <p className="text-sm text-emerald-300">{session.interventionPlan.headline}</p>
+                        <p className="text-xs text-emerald-400 mt-1">{session.interventionPlan.whyItWorks}</p>
+                      </div>
+                      
+                      <div>
+                        <h5 className="text-xs font-semibold text-emerald-200 mb-2">Steps:</h5>
+                        <div className="space-y-2">
+                          {session.interventionPlan.steps.map((step, index) => (
+                            <div key={index} className="text-xs text-emerald-300">
+                              <p className="font-medium">Step {index + 1}: {step.action}</p>
+                              {step.tip && (
+                                <p className="text-emerald-400 mt-1 ml-2">💡 {step.tip}</p>
+                              )}
+                              {step.resources && step.resources.length > 0 && (
+                                <div className="mt-1 ml-2">
+                                  <p className="text-emerald-400 font-medium">Resources:</p>
+                                  <ul className="text-emerald-400 list-disc list-inside">
+                                    {step.resources.map((resource, resourceIndex) => (
+                                      <li key={resourceIndex}>{resource}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h5 className="text-xs font-semibold text-emerald-200 mb-1">Reflection Prompt:</h5>
+                        <p className="text-xs text-emerald-300 italic">{session.interventionPlan.reflectionPrompt}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         ) : (

@@ -454,16 +454,13 @@ export default function StuckApp() {
         { customMessage: ERROR_MESSAGES.intervention.generate }
       );
       
-      if (!result.success) {
-        setErrorMessage(result.error || ERROR_MESSAGES.intervention.generate);
-        return;
+      if (result.success) {
+        // If we got here, the async function succeeded
+        const plans = result.data!;
+        setInterventionPlans(plans);
+        setProcessComplete(true);
+        setActiveTab("intervention");
       }
-      
-      // If we got here, the async function succeeded
-      const plans = result.data!;
-      setInterventionPlans(plans);
-      setProcessComplete(true);
-      setActiveTab("intervention");
     } finally {
       setLoadingInterventions(false);
     }

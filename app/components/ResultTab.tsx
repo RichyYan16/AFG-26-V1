@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { STUCK_TYPE_LABELS, STUCK_TYPE_DESCRIPTIONS } from "../constants";
+import { generateAISummary } from "../services/diagnosis";
 import type { DiagnosisResult, TypeScore } from "@/model/new/types";
 
 interface ResultTabProps {
@@ -9,6 +11,9 @@ interface ResultTabProps {
 }
 
 export function ResultTab({ diagnosis, loadingInterventions, onGenerateInterventions, onNavigateToIntervention }: ResultTabProps) {
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+
   // Calculate normalized percentages that add up to 100%
   const getNormalizedPercentages = (rankedTypes: TypeScore[]) => {
     if (!rankedTypes || rankedTypes.length === 0) return [];
@@ -18,6 +23,25 @@ export function ResultTab({ diagnosis, loadingInterventions, onGenerateIntervent
       percentage: totalScore > 0 ? (item.normalized / totalScore) * 100 : 0
     }));
   };
+
+  // Generate AI summary when diagnosis changes
+  useEffect(() => {
+    if (diagnosis) {
+      setLoadingSummary(true);
+      generateAISummary(diagnosis)
+        .then((summary) => {
+          setAiSummary(summary);
+        })
+        .catch((error) => {
+          console.error("Failed to generate AI summary:", error);
+        })
+        .finally(() => {
+          setLoadingSummary(false);
+        });
+    } else {
+      setAiSummary("");
+    }
+  }, [diagnosis]);
 
   return (
     <div className="space-y-5">
@@ -67,10 +91,14 @@ export function ResultTab({ diagnosis, loadingInterventions, onGenerateIntervent
             
             <div className="mt-6 text-center space-y-3">
               <p className="text-xs uppercase tracking-wide text-lime-200">
-                -----Very Brief Summary--------
+                -----Summary-----
               </p>
               <p className="text-emerald-200 italic">
-                {diagnosis.summary || `You're experiencing ${STUCK_TYPE_LABELS[diagnosis.primaryType].toLowerCase()}, which means ${STUCK_TYPE_DESCRIPTIONS[diagnosis.primaryType].toLowerCase()} This is affecting your ability to make progress on your academic work.`}
+                {loadingSummary ? (
+                  <span className="animate-pulse">Generating personalized summary...</span>
+                ) : (
+                  aiSummary || `You're experiencing ${STUCK_TYPE_LABELS[diagnosis.primaryType].toLowerCase()}, which means ${STUCK_TYPE_DESCRIPTIONS[diagnosis.primaryType].toLowerCase()} This is affecting your ability to make progress on your academic work.`
+                )}
               </p>
             </div>
           </div>

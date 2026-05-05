@@ -27,10 +27,20 @@ export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
                 }}
                 className="w-full rounded-lg border border-emerald-800 bg-emerald-950/60 p-3 text-left hover:border-lime-500"
               >
-                <p className="text-sm">
-                  {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
-                  {OUTCOME_LABELS[session.outcome]}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    {STUCK_TYPE_LABELS[session.stuckType]} -{" "}
+                    {OUTCOME_LABELS[session.outcome]}
+                  </p>
+                  {session.sessionSummary && (
+                    <div className="text-xs text-emerald-300 space-y-1">
+                      <p>Plan: {session.sessionSummary.primaryPlanHeadline}</p>
+                      <p>Confidence: {Math.round(session.sessionSummary.confidence * 100)}%</p>
+                      <p>Est. Time: {session.sessionSummary.estimatedTimeMinutes}min</p>
+                      <p>Session Key: {session.sessionSummary.sessionKey.substring(0, 12)}...</p>
+                    </div>
+                  )}
+                </div>
               </button>
             ))}
           </div>

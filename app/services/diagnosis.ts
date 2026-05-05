@@ -30,7 +30,7 @@ export function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Reco
 
 // Generate follow-up questions based on initial responses
 export async function generateFollowUpQuestions(answers: Partial<DiagnosticAnswers>): Promise<AdaptiveQuestion[]> {
-  console.log("🔄 generateFollowUpQuestions called with:", answers);
+  console.log("generateFollowUpQuestions called with:", answers);
   try {
     const messages: ChatMessage[] = [
       {
@@ -69,12 +69,12 @@ Please generate 5 follow-up questions to better understand this student's stuck 
     ];
 
     const response = await sendMessageToAPI(messages);
-    console.log("📥 API response received:", response);
+    console.log("API response received:", response);
     
     // Try to parse the JSON response
     try {
       const parsedResponse = JSON.parse(response);
-      console.log("✅ Successfully parsed API response:", parsedResponse);
+      console.log("Successfully parsed API response:", parsedResponse);
       if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
         const result = parsedResponse.map((q, index) => ({
           id: q.id || `follow_up_${index + 1}` as AdaptiveQuestion["id"],
@@ -86,15 +86,15 @@ Please generate 5 follow-up questions to better understand this student's stuck 
             { value: 'option4', label: 'Option 4' }
           ]
         }));
-        console.log("🎯 Returning API-generated questions:", result);
+        console.log("Returning API-generated questions:", result);
         return result;
       }
     } catch (parseError) {
-      console.warn("❌ Failed to parse API response as JSON, using fallback:", parseError);
+      console.warn("Failed to parse API response as JSON, using fallback:", parseError);
     }
     
     // If we get here, parsing failed, so use fallback
-    console.log("🔄 Using fallback questions");
+    console.log("Using fallback questions");
     return getFallbackQuestions();
     
   } catch (error) {
@@ -196,12 +196,12 @@ Please generate 5 specific intervention strategies for this student's ${assessme
     ];
 
     const response = await sendMessageToAPI(messages);
-    console.log("📥 Intervention API response received:", response);
+    console.log("Intervention API response received:", response);
     
     // Try to parse the JSON response
     try {
       const parsedResponse = JSON.parse(response);
-      console.log("✅ Successfully parsed intervention API response:", parsedResponse);
+      console.log("Successfully parsed intervention API response:", parsedResponse);
       if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
         const result = parsedResponse.map((intervention) => ({
           action: intervention.action || intervention.strategy || "Default intervention action",
@@ -211,15 +211,15 @@ Please generate 5 specific intervention strategies for this student's ${assessme
         return result;
       }
     } catch (parseError) {
-      console.warn("❌ Failed to parse intervention API response as JSON, using fallback:", parseError);
+      console.warn("Failed to parse intervention API response as JSON, using fallback:", parseError);
     }
     
     // If we get here, parsing failed, so use fallback
-    console.log("🔄 Using fallback interventions");
+    console.log("Using fallback interventions");
     return getFallbackInterventionPlans(assessment.primaryType);
     
   } catch (error) {
-    console.error("💥 API call failed for generateInterventionPlans, using fallback:", error);
+    console.error("API call failed for generateInterventionPlans, using fallback:", error);
     return getFallbackInterventionPlans(assessment.primaryType);
   }
 }

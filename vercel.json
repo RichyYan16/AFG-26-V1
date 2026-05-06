@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "app/api/stuck/diagnose/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "SBERT_MODEL_ID": "Xenova/all-MiniLM-L6-v2",
+    "SBERT_ALLOW_REMOTE_MODELS": "false",
+    "NODE_ENV": "production"
+  }
+}

@@ -35,14 +35,20 @@ let modelCache: EmbeddingPipeline | null = null;
 let anchorEmbeddingCache: Record<StuckType, number[][]> | null = null;
 
 /**
- * Load Sentence-BERT model (cached)
+ * Load Sentence-BERT model (cached) with timeout and fallback
  * Uses the all-MiniLM-L6-v2 model via @xenova/transformers
  */
 async function loadModel() {
   if (!modelCache) {
     console.log(`Loading Sentence-BERT model: ${SBERT_MODEL_ID}...`);
     try {
-      const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
+      // Add timeout for model loading (10 seconds)
+      const modelLoadPromise = pipeline("feature-extraction", SBERT_MODEL_ID);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Model loading timeout')), 10000)
+      );
+      
+      const loadedModel = await Promise.race([modelLoadPromise, timeoutPromise]);
       
       // Safety check: ensure loaded model is valid
       if (!loadedModel) {
@@ -56,16 +62,103 @@ async function loadModel() {
         ` Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
         error,
       );
-      throw new Error(`Failed to load Sentence-BERT model: ${error instanceof Error ? error.message : String(error)}`);
+      // Instead of throwing, return a fallback model
+      console.log(' Using fallback embedding model...');
+      modelCache = createFallbackModel();
     }
   }
   
   // Safety check: ensure cached model is valid
   if (!modelCache) {
-    throw new Error('Model cache is null/undefined after loading');
+    console.log(' Model cache is null, using fallback...');
+    modelCache = createFallbackModel();
   }
   
   return modelCache;
+}
+
+/**
+ * Create a simple fallback embedding model that doesn't require heavy ML
+ * Uses basic keyword matching and simple vector generation
+ */
+function createFallbackModel(): EmbeddingPipeline {
+  return async (input: string, options: { pooling: "mean"; normalize: boolean }) => {
+    // Simple keyword-based embedding generation
+    const keywords = {
+      confused: [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
+      confusing: [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
+      lost: [0.7, 0.2, 0.1, 0.3, 0.2, 0.1],
+      unclear: [0.6, 0.3, 0.1, 0.2, 0.1, 0.1],
+      ambiguous: [0.2, 0.8, 0.1, 0.1, 0.1, 0.1],
+      uncertain: [0.3, 0.7, 0.1, 0.2, 0.1, 0.1],
+      scared: [0.1, 0.1, 0.8, 0.3, 0.2, 0.1],
+      afraid: [0.1, 0.1, 0.9, 0.2, 0.1, 0.1],
+      anxious: [0.2, 0.2, 0.7, 0.4, 0.3, 0.2],
+      overwhelmed: [0.3, 0.2, 0.6, 0.8, 0.4, 0.3],
+      too_much: [0.2, 0.1, 0.4, 0.9, 0.5, 0.3],
+      exhausted: [0.1, 0.1, 0.3, 0.4, 0.9, 0.4],
+      tired: [0.1, 0.2, 0.2, 0.3, 0.8, 0.5],
+      burned_out: [0.2, 0.1, 0.3, 0.5, 0.8, 0.4],
+      perfect: [0.1, 0.1, 0.2, 0.1, 0.2, 0.8],
+      perfectionism: [0.1, 0.1, 0.1, 0.1, 0.2, 0.9],
+    };
+
+    const lowerInput = input.toLowerCase();
+    let embedding = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]; // Default baseline
+
+    // Check for keywords and accumulate scores
+    for (const [keyword, vector] of Object.entries(keywords)) {
+      if (lowerInput.includes(keyword)) {
+        embedding = embedding.map((val, idx) => Math.max(val, vector[idx]));
+      }
+    }
+
+    // Simple normalization
+    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+    if (magnitude > 0) {
+      embedding = embedding.map(val => val / magnitude);
+    }
+
+    return { data: embedding };
+  };
+}
+
+/**
+ * Get fallback anchor embeddings for when model loading fails
+ */
+function getFallbackAnchorEmbeddings(): Record<StuckType, number[][]> {
+  return {
+    confusion: [
+      [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
+      [0.7, 0.2, 0.1, 0.3, 0.2, 0.1],
+      [0.6, 0.3, 0.1, 0.2, 0.1, 0.1],
+    ],
+    ambiguity: [
+      [0.2, 0.8, 0.1, 0.1, 0.1, 0.1],
+      [0.3, 0.7, 0.1, 0.2, 0.1, 0.1],
+      [0.1, 0.9, 0.1, 0.1, 0.1, 0.1],
+    ],
+    fear: [
+      [0.1, 0.1, 0.8, 0.3, 0.2, 0.1],
+      [0.1, 0.1, 0.9, 0.2, 0.1, 0.1],
+      [0.2, 0.2, 0.7, 0.4, 0.3, 0.2],
+    ],
+    overwhelm: [
+      [0.3, 0.2, 0.6, 0.8, 0.4, 0.3],
+      [0.2, 0.1, 0.4, 0.9, 0.5, 0.3],
+      [0.1, 0.2, 0.5, 0.8, 0.4, 0.2],
+    ],
+    exhaustion: [
+      [0.1, 0.1, 0.3, 0.4, 0.9, 0.4],
+      [0.1, 0.2, 0.2, 0.3, 0.8, 0.5],
+      [0.2, 0.1, 0.3, 0.5, 0.8, 0.4],
+    ],
+    perfection_loop: [
+      [0.1, 0.1, 0.2, 0.1, 0.2, 0.8],
+      [0.1, 0.1, 0.1, 0.1, 0.2, 0.9],
+      [0.2, 0.1, 0.2, 0.2, 0.3, 0.8],
+    ],
+  };
 }
 
 async function loadAnchorEmbeddings(
@@ -78,7 +171,8 @@ async function loadAnchorEmbeddings(
   // Safety check: ensure model is valid
   if (!model) {
     console.error(' Invalid model provided to loadAnchorEmbeddings');
-    throw new Error('Invalid model: model is null or undefined');
+    console.log(' Using fallback anchor embeddings...');
+    return getFallbackAnchorEmbeddings();
   }
 
   const cache: Record<StuckType, number[][]> = {
@@ -90,32 +184,48 @@ async function loadAnchorEmbeddings(
     perfection_loop: [],
   };
 
-  for (const [stuckType, anchors] of Object.entries(
-    STUCK_TYPE_ANCHORS,
-  ) as [StuckType, string[]][]) {
-    for (const anchor of anchors) {
-      try {
-        const anchorResult = await model(anchor, {
-          pooling: "mean",
-          normalize: true,
-        });
-        
-        // Safety check: ensure anchorResult and anchorResult.data are valid
-        if (!anchorResult || !anchorResult.data) {
-          console.error(` Invalid anchor result for "${anchor}":`, anchorResult);
-          continue;
+  try {
+    // Add timeout for anchor processing (5 seconds)
+    const anchorProcessingPromise = (async () => {
+      for (const [stuckType, anchors] of Object.entries(
+        STUCK_TYPE_ANCHORS,
+      ) as [StuckType, string[]][]) {
+        for (const anchor of anchors) {
+          try {
+            const anchorResult = await model(anchor, {
+              pooling: "mean",
+              normalize: true,
+            });
+            
+            // Safety check: ensure anchorResult and anchorResult.data are valid
+            if (!anchorResult || !anchorResult.data) {
+              console.error(` Invalid anchor result for "${anchor}":`, anchorResult);
+              continue;
+            }
+            
+            cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+          } catch (error) {
+            console.error(` Failed to process anchor "${anchor}":`, error);
+            // Continue with other anchors
+          }
         }
-        
-        cache[stuckType].push(Array.from(anchorResult.data) as number[]);
-      } catch (error) {
-        console.error(` Failed to process anchor "${anchor}":`, error);
-        // Continue with other anchors
       }
-    }
+      return cache;
+    })();
+    
+    const timeoutPromise = new Promise<Record<StuckType, number[][]>>((_, reject) => 
+      setTimeout(() => reject(new Error('Anchor embedding processing timeout')), 5000)
+    );
+    
+    const result = await Promise.race([anchorProcessingPromise, timeoutPromise]);
+    anchorEmbeddingCache = result;
+    return anchorEmbeddingCache;
+  } catch (error) {
+    console.error(' Anchor embedding processing failed:', error);
+    console.log(' Using fallback anchor embeddings...');
+    anchorEmbeddingCache = getFallbackAnchorEmbeddings();
+    return anchorEmbeddingCache;
   }
-
-  anchorEmbeddingCache = cache;
-  return anchorEmbeddingCache;
 }
 
 /**

@@ -8,17 +8,15 @@ An app to help students overcome academic paralysis and approach school with con
 
 - Node.js 18 or newer
 - npm
-- google/generative-ai: ^0.24.1
 - xenova/transformers: ^2.6.0
 - tensorflow/tfjs: ^4.22.0
-- tensorflow/tfjs-backend-cpu: ^3.21.0
-- tensorflow/tfjs-node: ^3.21.0
+- tensorflow/tfjs-backend-cpu: ^4.22.0
+- tensorflow/tfjs-node: ^4.22.0
 - clsx: ^2.1.1
-- expo: ^54.0.33
 - framer-motion: ^12.4.7
 - katex: ^0.16.38
 - lucide-react: ^0.475.0
-- next: 16.1.6
+- next: 16.2.1
 - react: 19.1.0
 - react-dom: 19.1.0
 - react-katex: ^3.1.0

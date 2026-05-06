@@ -32,6 +32,12 @@ export async function diagnoseWithHybridModel(
   console.log("=".repeat(80) + "\n");
 
   try {
+    // Safety check: validate answers before processing
+    if (!answers || typeof answers !== 'object') {
+      console.error(' Invalid answers provided to diagnoseWithHybridModel:', answers);
+      throw new Error('Invalid answers: must be a valid DiagnosticAnswers object');
+    }
+
     // Step 1: Compute raw embedding vector [a, b, c, ...]
     console.log(" Step 1: Computing embedding vector...");
     const embeddingVector = await computeEmbeddingVector(answers);

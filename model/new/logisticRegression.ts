@@ -56,11 +56,21 @@ async function initializeModelWeights() {
     
     if (isNode) {
       // Node.js: use file system
-      const fs = await import("fs/promises");
-      const path = await import("path");
-      const weightsPath = path.join(process.cwd(), "public", "logisticRegressionWeights.json");
-      const fileContent = await fs.readFile(weightsPath, "utf-8");
-      data = JSON.parse(fileContent) as LogisticWeightsFile;
+      try {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const weightsPath = path.join(process.cwd(), "public", "logisticRegressionWeights.json");
+        const fileContent = await fs.readFile(weightsPath, "utf-8");
+        data = JSON.parse(fileContent) as LogisticWeightsFile;
+      } catch (importError) {
+        console.warn("Failed to import fs/promises, falling back to fetch:", importError);
+        // Fallback to fetch if fs import fails
+        const response = await fetch("/logisticRegressionWeights.json");
+        if (!response.ok) {
+          throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
+        }
+        data = (await response.json()) as LogisticWeightsFile;
+      }
     } else {
       // Browser: use fetch
       const response = await fetch("/logisticRegressionWeights.json");

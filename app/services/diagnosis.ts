@@ -7,6 +7,83 @@ import type {
   QuestionOption,
 } from "@/model/new/types";
 import { requestAssessment } from "../utils";
+import { STUCK_TYPE_DESCRIPTIONS } from "../constants";
+
+// Helper function to clean and parse JSON responses from AI models
+function cleanAndParseJSON(response: string): any {
+  console.log("🔍 Attempting to parse JSON response:", response.substring(0, 200) + "...");
+  
+  try {
+    // First try direct parsing
+    const result = JSON.parse(response);
+    console.log("✅ Direct JSON parsing successful");
+    return result;
+  } catch (error) {
+    console.warn("⚠️ Direct JSON parsing failed, attempting extraction:", error);
+    
+    // Try to extract JSON from the response (handle markdown code blocks)
+    let jsonMatch = response.match(/```json\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[1]);
+        console.log("✅ Successfully parsed JSON from markdown code block");
+        return result;
+      } catch (innerError) {
+        console.warn("⚠️ Failed to parse JSON from markdown code block:", innerError);
+      }
+    }
+    
+    // Try to find JSON array or object without markdown
+    jsonMatch = response.match(/\[[\s\S]*\]/) || response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        console.log("✅ Successfully parsed extracted JSON");
+        return result;
+      } catch (innerError) {
+        console.warn("⚠️ Failed to parse extracted JSON:", innerError);
+      }
+    }
+    
+    // Try to fix common JSON issues
+    let cleaned = response
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Remove control characters
+      .replace(/\\n/g, "\\n") // Fix newlines
+      .replace(/\\"/g, '\\"') // Fix escaped quotes
+      .trim();
+    
+    console.log("🧹 Attempting to parse cleaned response:", cleaned.substring(0, 200) + "...");
+    
+    // Try to find JSON array or object in cleaned text
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+    
+    if (arrayMatch) {
+      try {
+        const result = JSON.parse(arrayMatch[0]);
+        console.log("✅ Successfully parsed cleaned array JSON");
+        return result;
+      } catch (e) {
+        console.warn("⚠️ Failed to parse cleaned array JSON:", e);
+      }
+    }
+    
+    if (objectMatch) {
+      try {
+        const result = JSON.parse(objectMatch[0]);
+        console.log("✅ Successfully parsed cleaned object JSON");
+        return result;
+      } catch (e) {
+        console.warn("⚠️ Failed to parse cleaned object JSON:", e);
+      }
+    }
+    
+    console.error("❌ All JSON parsing attempts failed");
+    throw new Error(`Could not parse JSON from response: ${response.substring(0, 200)}...`);
+  }
+}
 
 // Custom Word Embedding Algorithm
 export function computeWordEmbeddings(answers: Partial<DiagnosticAnswers>): Record<string, number> {
@@ -39,7 +116,9 @@ export async function generateFollowUpQuestions(answers: Partial<DiagnosticAnswe
 Based on the student's responses, generate 5 targeted follow-up questions to better understand their specific stuck pattern.
 Each question should help distinguish between different types of academic paralysis: confusion, ambiguity, fear, overwhelm, exhaustion, or perfection_loop.
 
-Return your response as a JSON array of questions with this exact format:
+CRITICAL: You must respond with ONLY a valid JSON array. No additional text, no explanations, no markdown formatting, no code blocks. Just the raw JSON.
+
+Your response must be exactly in this format:
 [
   {
     "id": "follow_up_1",
@@ -53,7 +132,7 @@ Return your response as a JSON array of questions with this exact format:
   }
 ]
 
-Make questions specific, insightful, and designed to reveal the underlying stuck pattern.`
+Make questions specific, insightful, and designed to reveal the underlying stuck pattern. Remember: respond with ONLY the JSON array, nothing else.`
       },
       {
         role: "user",
@@ -71,10 +150,10 @@ Please generate 5 follow-up questions to better understand this student's stuck 
     const response = await sendMessageToAPI(messages);
     console.log("API response received:", response);
     
-    // Try to parse the JSON response
+    // Try to parse the JSON response with cleaning
     try {
-      const parsedResponse = JSON.parse(response);
-      console.log("Successfully parsed API response:", parsedResponse);
+      const parsedResponse = cleanAndParseJSON(response);
+      console.log("✅ Successfully parsed API response:", parsedResponse);
       if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
         const result = parsedResponse.map((q, index) => ({
           id: q.id || `follow_up_${index + 1}` as AdaptiveQuestion["id"],
@@ -159,6 +238,59 @@ function getFallbackQuestions(): AdaptiveQuestion[] {
   ];
 }
 
+// Generate AI-powered summary for diagnosis results
+export async function generateAISummary(assessment: DiagnosisResult): Promise<string> {
+  console.log("🔄 generateAISummary called with:", assessment.primaryType);
+  try {
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: `You are an expert academic coach specializing in helping students overcome academic paralysis.
+Based on the student's assessment results, generate a brief, empathetic summary (2-3 sentences) that explains their primary stuck pattern and offers hope.
+
+CRITICAL: You must respond with ONLY the summary text. No additional text, no explanations, no markdown formatting, no code blocks, no JSON. Just the raw summary text.
+
+Your summary should be:
+- Empathetic and validating
+- Brief (2-3 sentences maximum)
+- Focused on the primary stuck type
+- End with a hopeful note about improvement possibilities
+
+Example format: "You're experiencing [stuck type], which means [brief explanation]. The good news is that [hopeful statement about improvement]."`
+      },
+      {
+        role: "user",
+        content: `Student Assessment Results:
+Primary Stuck Type: ${assessment.primaryType}
+Confidence: ${Math.round(assessment.confidence * 100)}%
+Summary: ${assessment.summary}
+
+Ranked Types:
+${assessment.rankedTypes.map((type, index) => `${index + 1}. ${type.type} (score: ${type.score}): ${type.reasons.slice(0, 2).join(', ')}`).join('\n')}
+
+Please generate a brief, empathetic summary for this student.`
+      }
+    ];
+
+    const response = await sendMessageToAPI(messages);
+    console.log("📥 Summary API response received:", response);
+    
+    // Clean the response to remove any potential formatting
+    const cleanedSummary = response
+      .replace(/```/g, "")
+      .replace(/"/g, "")
+      .trim();
+    
+    console.log("✅ Successfully generated AI summary:", cleanedSummary);
+    return cleanedSummary;
+    
+  } catch (error) {
+    console.error("💥 API call failed for generateAISummary, using fallback:", error);
+    // Return fallback summary
+    return `You're experiencing ${assessment.primaryType}, which means ${STUCK_TYPE_DESCRIPTIONS[assessment.primaryType]}. The good news is that with the right strategies, you can overcome this pattern and make progress on your academic work.`;
+  }
+}
+
 // Generate intervention plans using API with fallback logic
 export async function generateInterventionPlans(assessment: DiagnosisResult): Promise<Array<{action: string; resources?: string[]}>> {
   console.log("🔄 generateInterventionPlans called with:", assessment.primaryType);
@@ -170,7 +302,9 @@ export async function generateInterventionPlans(assessment: DiagnosisResult): Pr
 Based on the student's assessment, generate 5 specific, actionable intervention strategies tailored to their stuck type.
 Each strategy should be practical, evidence-based, and include relevant resources.
 
-Return your response as a JSON array with this exact format:
+CRITICAL: You must respond with ONLY a valid JSON array. No additional text, no explanations, no markdown formatting, no code blocks. Just the raw JSON.
+
+Your response must be exactly in this format:
 [
   {
     "action": "Specific actionable step the student should take",
@@ -179,7 +313,7 @@ Return your response as a JSON array with this exact format:
 ]
 
 Make interventions specific to the stuck type: confusion, ambiguity, fear, overwhelm, exhaustion, or perfection_loop.
-Focus on practical, immediate actions students can take.`
+Focus on practical, immediate actions students can take. Remember: respond with ONLY the JSON array, nothing else.`
       },
       {
         role: "user",
@@ -198,10 +332,10 @@ Please generate 5 specific intervention strategies for this student's ${assessme
     const response = await sendMessageToAPI(messages);
     console.log("Intervention API response received:", response);
     
-    // Try to parse the JSON response
+    // Try to parse the JSON response with cleaning
     try {
-      const parsedResponse = JSON.parse(response);
-      console.log("Successfully parsed intervention API response:", parsedResponse);
+      const parsedResponse = cleanAndParseJSON(response);
+      console.log("✅ Successfully parsed intervention API response:", parsedResponse);
       if (Array.isArray(parsedResponse) && parsedResponse.length > 0) {
         const result = parsedResponse.map((intervention) => ({
           action: intervention.action || intervention.strategy || "Default intervention action",

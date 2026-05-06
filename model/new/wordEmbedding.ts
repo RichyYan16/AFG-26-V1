@@ -43,6 +43,12 @@ async function loadModel() {
     console.log(`Loading Sentence-BERT model: ${SBERT_MODEL_ID}...`);
     try {
       const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
+      
+      // Safety check: ensure loaded model is valid
+      if (!loadedModel) {
+        throw new Error('Model loading returned null/undefined');
+      }
+      
       modelCache = loadedModel as unknown as EmbeddingPipeline;
       console.log(" Sentence-BERT model loaded successfully");
     } catch (error) {
@@ -50,9 +56,15 @@ async function loadModel() {
         ` Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
         error,
       );
-      throw error;
+      throw new Error(`Failed to load Sentence-BERT model: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  
+  // Safety check: ensure cached model is valid
+  if (!modelCache) {
+    throw new Error('Model cache is null/undefined after loading');
+  }
+  
   return modelCache;
 }
 
@@ -61,6 +73,12 @@ async function loadAnchorEmbeddings(
 ): Promise<Record<StuckType, number[][]>> {
   if (anchorEmbeddingCache) {
     return anchorEmbeddingCache;
+  }
+
+  // Safety check: ensure model is valid
+  if (!model) {
+    console.error(' Invalid model provided to loadAnchorEmbeddings');
+    throw new Error('Invalid model: model is null or undefined');
   }
 
   const cache: Record<StuckType, number[][]> = {
@@ -76,11 +94,23 @@ async function loadAnchorEmbeddings(
     STUCK_TYPE_ANCHORS,
   ) as [StuckType, string[]][]) {
     for (const anchor of anchors) {
-      const anchorResult = await model(anchor, {
-        pooling: "mean",
-        normalize: true,
-      });
-      cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+      try {
+        const anchorResult = await model(anchor, {
+          pooling: "mean",
+          normalize: true,
+        });
+        
+        // Safety check: ensure anchorResult and anchorResult.data are valid
+        if (!anchorResult || !anchorResult.data) {
+          console.error(` Invalid anchor result for "${anchor}":`, anchorResult);
+          continue;
+        }
+        
+        cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+      } catch (error) {
+        console.error(` Failed to process anchor "${anchor}":`, error);
+        // Continue with other anchors
+      }
     }
   }
 
@@ -160,10 +190,22 @@ export async function computeEmbeddingVector(
   try {
     const model = await loadModel();
 
+    // Safety check: ensure answers is a valid object
+    if (!answers || typeof answers !== 'object') {
+      console.error(' Invalid answers provided to computeEmbeddingVector:', answers);
+      throw new Error('Invalid answers: must be a valid object');
+    }
+
     // Combine all answers into single text
     const studentText = Object.values(answers)
       .filter(Boolean)
       .join(" ");
+
+    // Ensure we have some text to embed
+    if (!studentText.trim()) {
+      console.error(' No valid text found in answers for embedding');
+      throw new Error('No valid text found in answers for embedding');
+    }
 
     // Embed student response using Sentence-BERT
     const result = await model(studentText, {
@@ -171,8 +213,20 @@ export async function computeEmbeddingVector(
       normalize: true,
     });
 
+    // Safety check: ensure result and result.data are valid
+    if (!result || !result.data) {
+      console.error(' Invalid model result:', result);
+      throw new Error('Invalid model result: result or result.data is null/undefined');
+    }
+
     // Extract embedding vector from result
     const studentVec = Array.from(result.data) as number[];
+
+    // Safety check: ensure we got a valid vector
+    if (!studentVec || studentVec.length === 0) {
+      console.error(' Invalid embedding vector:', studentVec);
+      throw new Error('Invalid embedding vector: empty or null');
+    }
 
     console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
     return studentVec;

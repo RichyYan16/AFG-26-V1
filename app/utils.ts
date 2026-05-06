@@ -52,7 +52,30 @@ export async function requestAssessment(
   });
 
   if (!response.ok) {
-    throw new Error("Assessment request failed.");
+    let errorMessage = `Assessment request failed with status ${response.status}`;
+    try {
+      const errorData = await response.json();
+      const details = (errorData as any).message || (errorData as any).error || "";
+      if (details) {
+        errorMessage += `: ${details}`;
+      }
+    } catch {
+      // If response is not JSON, try to get text
+      try {
+        const text = await response.text();
+        if (text) {
+          errorMessage += `: ${text.substring(0, 200)}`;
+        }
+      } catch {
+        // Ignore if we can't get error details
+      }
+    }
+    console.error("Assessment request error:", {
+      status: response.status,
+      statusText: response.statusText,
+      errorMessage,
+    });
+    throw new Error(errorMessage);
   }
 
   return (await response.json()) as DiagnoseResponse;

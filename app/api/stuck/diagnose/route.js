@@ -73,14 +73,9 @@ function validatePayload(payload) {
  */
 export async function POST(req) {
   try {
-    // Check API key
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
-
+    // Note: OPENROUTER_API_KEY is used by /api/chat for generating questions
+    // This endpoint uses the ML model directly, not an external API
+    
     const body = await req.json();
     const validation = validatePayload(body);
 

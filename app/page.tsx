@@ -65,16 +65,17 @@ export default function StuckApp() {
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
   const [processComplete, setProcessComplete] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [sessionStartTime, setSessionStartTime] = useState<number>(0);
   const [sessionKey, setSessionKey] = useState<string>("");
   const [noticeTimer, setNoticeTimer] = useState<NodeJS.Timeout | null>(null);
 
   const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
   const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
 
-  // Initialize cache on app start
+  // Initialize cache and session start time on app start (client-only)
   useEffect(() => {
     initializeCache();
+    setSessionStartTime(Date.now());
   }, []);
 
   // Auto-clear notices after 5 seconds

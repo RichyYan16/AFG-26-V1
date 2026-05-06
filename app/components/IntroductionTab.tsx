@@ -18,7 +18,7 @@ export function IntroductionTab({ loading, onStartQuestionnaire, onResetToHome }
             <div className="flex-shrink-0 w-8 h-8 bg-lime-300 text-emerald-950 rounded-full flex items-center justify-center text-sm font-semibold">1</div>
             <div>
               <h3 className="font-semibold text-emerald-100">Quick Assessment</h3>
-              <p className="text-sm">We ask 5 research-based questions to understand why you&apos;re stuck</p>
+              <p className="text-sm">We ask 5 research-based questions to understand why you&apos;re stuc. Then, our app asks 5 follow-up questions based on your previous responses to help narrow down the app's prediction.</p>
             </div>
           </div>
           

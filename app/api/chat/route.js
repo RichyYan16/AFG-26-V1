@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const OPENROUTER_API_URL = "https://openrouter.io/api/v1/chat/completions";
 
 /**
  * @typedef {Object} ChatMessage
@@ -9,20 +9,21 @@ const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/
  */
 
 /**
- * @typedef {Object} GeminiContent
- * @property {{text: string}[]} parts - Parts of the message
- * @property {"user" | "model"} [role] - Role in Gemini API
+ * @typedef {Object} OpenRouterMessage
+ * @property {"user" | "assistant" | "system"} role - Message role
+ * @property {string} content - Message content
  */
 
 /**
- * @typedef {Object} GeminiRequest
- * @property {GeminiContent[]} contents - Message contents
- * @property {{temperature: number, maxOutputTokens: number}} generationConfig - Generation config
+ * @typedef {Object} OpenRouterRequest
+ * @property {string} model - Model name
+ * @property {OpenRouterMessage[]} messages - Message array
+ * @property {{temperature: number, max_tokens: number}} - Generation config
  */
 
 /**
- * @typedef {Object} GeminiResponse
- * @property {Array<{content?: {parts?: Array<{text?: string}>}}>} [candidates] - Response candidates
+ * @typedef {Object} OpenRouterResponse
+ * @property {Array<{message?: {content?: string}}>} [choices] - Response choices
  */
 
 /**
@@ -48,7 +49,7 @@ function isChatMessageArray(value) {
 
 /**
  * POST /api/chat
- * Proxies chat messages to Gemini API
+ * Proxies chat messages to OpenRouter API
  * 
  * Request body:
  * {
@@ -57,17 +58,17 @@ function isChatMessageArray(value) {
  * 
  * Response:
  * {
- *   text: string - The response from Gemini
+ *   text: string - The response from OpenRouter
  * }
  * 
  * @param {Request} req - The request
- * @returns {Promise<NextResponse>} Response from Gemini API
+ * @returns {Promise<NextResponse>} Response from OpenRouter API
  */
 export async function POST(req) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
+        { error: "OPENROUTER_API_KEY not configured" },
         { status: 500 },
       );
     }
@@ -89,49 +90,47 @@ export async function POST(req) {
       );
     }
 
+    /** @type {OpenRouterMessage[]} */
     const messages = payload.messages;
-    const systemMessage = messages.find((msg) => msg.role === "system")?.content;
 
-    /** @type {GeminiContent[]} */
-    const contents = messages
-      .filter((msg) => msg.role !== "system")
-      .map((msg) => ({
-        parts: [{ text: msg.content }],
-        role: msg.role === "assistant" ? "model" : "user",
-      }));
-
-    if (systemMessage) {
-      contents.unshift({
-        parts: [{ text: systemMessage }],
-        role: "user",
-      });
-    }
-
-    /** @type {GeminiRequest} */
+    /** @type {OpenRouterRequest} */
     const body = {
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 50000,
-      },
+      model: "gpt-4-turbo-preview",
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 2000,
     };
 
-    const upstream = await fetch(
-      `${GEMINI_API_URL}?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+    const upstream = await fetch(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "https://afgstudents.org",
+        "X-Title": "AFG - Academic Focus Guardian",
       },
-    );
+      body: JSON.stringify(body),
+    });
+
+    console.log("OpenRouter request made:", {
+      url: OPENROUTER_API_URL,
+      method: "POST",
+      hasApiKey: !!process.env.OPENROUTER_API_KEY,
+      responseStatus: upstream.status,
+    });
 
     if (!upstream.ok) {
       const details = await upstream.text();
+      console.error("OpenRouter API error:", {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        details: details,
+        apiUrl: OPENROUTER_API_URL,
+        requestBody: JSON.stringify(body).substring(0, 200),
+      });
       return NextResponse.json(
         {
-          error: "Gemini API request failed",
+          error: "OpenRouter API request failed",
           upstreamStatus: upstream.status,
           details,
         },
@@ -140,11 +139,12 @@ export async function POST(req) {
     }
 
     const data = await upstream.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data.choices?.[0]?.message?.content;
 
     if (!text) {
+      console.error("No response text in OpenRouter response:", data);
       return NextResponse.json(
-        { error: "No response from Gemini API" },
+        { error: "No response from OpenRouter API" },
         { status: 502 },
       );
     }

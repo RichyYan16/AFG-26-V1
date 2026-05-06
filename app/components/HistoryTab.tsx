@@ -5,9 +5,11 @@ import type { SessionRecord } from "@/model/new/types";
 interface HistoryTabProps {
   history: SessionRecord[];
   onNavigateToInsights: () => void;
+  onClearHistory: () => void;
+  onDeleteSession: (sessionId: string) => void;
 }
 
-export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
+export function HistoryTab({ history, onNavigateToInsights, onClearHistory, onDeleteSession }: HistoryTabProps) {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const recentHistory = history.slice(0, 6);
 
@@ -22,25 +24,37 @@ export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
           <div className="mt-3 space-y-2">
             {recentHistory.map((session) => (
               <div key={session.id} className="rounded-lg border border-emerald-800 bg-emerald-950/60">
-                <button
-                  type="button"
-                  onClick={() => setExpandedSession(
-                    expandedSession === session.id ? null : session.id
-                  )}
-                  className="w-full p-3 text-left hover:border-lime-500 rounded-lg"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">
-                      {STUCK_TYPE_LABELS[session.stuckType]}
-                    </p>
-                    {session.sessionSummary && (
-                      <div className="text-xs text-emerald-300 space-y-1">
-                        <p>Plan: {session.sessionSummary.primaryPlanHeadline}</p>
-                        <p>Confidence: {Math.round(session.sessionSummary.confidence * 100)}%</p>
-                      </div>
+                <div className="flex items-start gap-2 p-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSession(
+                      expandedSession === session.id ? null : session.id
                     )}
-                  </div>
-                </button>
+                    className="flex-1 text-left hover:border-lime-500 rounded-lg p-1"
+                  >
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">
+                        {STUCK_TYPE_LABELS[session.stuckType]}
+                      </p>
+                      {session.sessionSummary && (
+                        <div className="text-xs text-emerald-300 space-y-1">
+                          <p>Plan: {session.sessionSummary.primaryPlanHeadline}</p>
+                          <p>Confidence: {Math.round(session.sessionSummary.confidence * 100)}%</p>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSession(session.id)}
+                    className="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-900/20"
+                    title="Delete session"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
                 
                 {expandedSession === session.id && (
                   <div className="border-t border-emerald-800 p-3 bg-emerald-950/40">
@@ -100,6 +114,15 @@ export function HistoryTab({ history, onNavigateToInsights }: HistoryTabProps) {
         >
           Open Insights Tab
         </button>
+        {history.length > 0 && (
+          <button
+            type="button"
+            onClick={onClearHistory}
+            className="rounded-lg border border-rose-700 px-4 py-2 text-sm text-rose-200 hover:border-rose-500"
+          >
+            Clear All History
+          </button>
+        )}
       </div>
     </div>
   );

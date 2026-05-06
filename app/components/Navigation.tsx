@@ -5,10 +5,9 @@ interface NavigationProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
   processComplete: boolean;
-  onClearHistory: () => void;
 }
 
-export function Navigation({ activeTab, onTabChange, processComplete, onClearHistory }: NavigationProps) {
+export function Navigation({ activeTab, onTabChange, processComplete }: NavigationProps) {
   if (!processComplete) {
     return null;
   }
@@ -34,14 +33,6 @@ export function Navigation({ activeTab, onTabChange, processComplete, onClearHis
             </button>
           );
         })}
-
-        <button
-          type="button"
-          onClick={onClearHistory}
-          className="rounded-lg border border-rose-700 px-3 py-2 text-sm text-rose-200 hover:border-rose-500"
-        >
-          Clear History
-        </button>
       </div>
     </div>
   );

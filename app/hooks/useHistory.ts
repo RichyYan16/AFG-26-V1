@@ -41,11 +41,19 @@ export function useHistory() {
     return updatedHistory;
   };
 
+  const deleteSession = (sessionId: string) => {
+    const updatedHistory = history.filter(session => session.id !== sessionId);
+    setHistory(updatedHistory);
+    saveHistory(updatedHistory);
+    return updatedHistory;
+  };
+
   return {
     history,
     hydrated,
     clearHistory,
     addToHistory,
     saveHistory,
+    deleteSession,
   };
 }

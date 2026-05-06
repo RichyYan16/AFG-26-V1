@@ -34,7 +34,6 @@ import { IntroductionTab } from "./components/IntroductionTab";
 import { QuestionnaireTab } from "./components/QuestionnaireTab";
 import { ResultTab } from "./components/ResultTab";
 import { InterventionTab } from "./components/InterventionTab";
-import { InsightsTab } from "./components/InsightsTab";
 import { HistoryTab } from "./components/HistoryTab";
 
 export default function StuckApp() {
@@ -69,7 +68,7 @@ export default function StuckApp() {
   const [sessionKey, setSessionKey] = useState<string>("");
   const [noticeTimer, setNoticeTimer] = useState<NodeJS.Timeout | null>(null);
 
-  const { history, hydrated, clearHistory: clearHistoryHook, addToHistory } = useHistory();
+  const { history, hydrated, clearHistory: clearHistoryHook, addToHistory, deleteSession } = useHistory();
   const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
 
   // Initialize cache on app start
@@ -572,6 +571,15 @@ export default function StuckApp() {
     }
   }
 
+  async function deleteSessionById(sessionId: string): Promise<void> {
+    try {
+      deleteSession(sessionId);
+      setNotice("Session deleted.");
+    } catch (error) {
+      setErrorMessage("Failed to delete session. Please try again.");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
@@ -581,7 +589,6 @@ export default function StuckApp() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           processComplete={processComplete}
-          onClearHistory={clearHistory}
         />
 
         <Alerts errorMessage={errorMessage} notice={notice} />
@@ -639,20 +646,12 @@ export default function StuckApp() {
             />
           )}
 
-          {activeTab === "insights" && (
-            <InsightsTab
-              insights={insights}
-              profile={profile}
-              onNavigateToHistory={() => setActiveTab("history")}
-              onNavigateToResult={() => setActiveTab("result")}
-              hasDiagnosis={!!assessment && !!plan}
-            />
-          )}
-
           {activeTab === "history" && (
             <HistoryTab
               history={history}
               onNavigateToInsights={() => setActiveTab("insights")}
+              onClearHistory={clearHistory}
+              onDeleteSession={deleteSessionById}
             />
           )}
         </section>

@@ -9,7 +9,6 @@ import type {
   SessionOutcome,
   SessionRecord,
   StudentProfile,
-  TrendInsight,
 } from "@/model/new/types";
 
 import { AppTab, STORAGE_KEY, MAX_HISTORY, OUTCOME_LABELS } from "./constants";
@@ -47,7 +46,6 @@ export default function StuckApp() {
   const [interventionPlans, setInterventionPlans] = useState<Array<{action: string; resources?: string[]}>>([]);
   const [loadingInterventions, setLoadingInterventions] = useState(false);
   const [showIntroduction, setShowIntroduction] = useState(false);
-  const [insights, setInsights] = useState<TrendInsight[]>([]);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [selectedOutcome, setSelectedOutcome] =
     useState<SessionOutcome>("started");
@@ -140,7 +138,6 @@ export default function StuckApp() {
   function resetResultState(): void {
     setAssessment(null);
     setPlan(null);
-    setInsights([]);
     setProfile(null);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
@@ -171,7 +168,6 @@ export default function StuckApp() {
   ): void {
     setAssessment(response.diagnosis);
     setPlan(response.plan);
-    setInsights(response.insights);
     setProfile(response.profile);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
@@ -520,7 +516,6 @@ export default function StuckApp() {
     try {
       const response = await requestAssessment(completeAnswers, history);
       if (response.status === "diagnosed") {
-        setInsights(response.insights);
         setProfile(response.profile);
       }
       setNotice(
@@ -649,7 +644,6 @@ export default function StuckApp() {
           {activeTab === "history" && (
             <HistoryTab
               history={history}
-              onNavigateToInsights={() => setActiveTab("insights")}
               onClearHistory={clearHistory}
               onDeleteSession={deleteSessionById}
             />

@@ -6,7 +6,7 @@
  */
 
 /**
- * @typedef {("home"|"introduction"|"questionnaire"|"result"|"intervention"|"insights"|"history")} AppTab
+ * @typedef {("home"|"introduction"|"questionnaire"|"result"|"intervention"|"history")} AppTab
  */
 
 export const STORAGE_KEY = "stuck_sessions_v1";
@@ -45,6 +45,5 @@ export const TAB_LABELS = {
   questionnaire: "Questionnaire",
   result: "Result",
   intervention: "Plan",
-  insights: "Insights",
   history: "History",
 };

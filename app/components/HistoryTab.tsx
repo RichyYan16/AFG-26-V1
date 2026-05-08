@@ -4,12 +4,11 @@ import type { SessionRecord } from "@/model/new/types";
 
 interface HistoryTabProps {
   history: SessionRecord[];
-  onNavigateToInsights: () => void;
   onClearHistory: () => void;
   onDeleteSession: (sessionId: string) => void;
 }
 
-export function HistoryTab({ history, onNavigateToInsights, onClearHistory, onDeleteSession }: HistoryTabProps) {
+export function HistoryTab({ history, onClearHistory, onDeleteSession }: HistoryTabProps) {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const recentHistory = history.slice(0, 6);
 
@@ -107,13 +106,6 @@ export function HistoryTab({ history, onNavigateToInsights, onClearHistory, onDe
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onNavigateToInsights}
-          className="rounded-lg border border-emerald-800 px-4 py-2 text-sm hover:border-lime-500"
-        >
-          Open Insights Tab
-        </button>
         {history.length > 0 && (
           <button
             type="button"

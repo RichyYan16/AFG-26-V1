@@ -4,6 +4,8 @@
  * Usage: curl http://localhost:3000/api/test-diagnosis
  */
 
+export const runtime = 'edge';
+
 import {
   diagnoseWithHybridModel,
   buildMultipleInterventionPlans,

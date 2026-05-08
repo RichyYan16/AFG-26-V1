@@ -25,7 +25,7 @@ An app to help students overcome academic paralysis and approach school with con
 ## Install Dependencies
 
 ```bash
-git clone https://github.com/Abhi52897340598327/AFG-26-V1.git
+git clone https://github.com/RichyYan16/AFG-26-V1.git
 cd AFG-26-V1
 npm install --legacy-peer-deps
 ```

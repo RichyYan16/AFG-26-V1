@@ -81,58 +81,24 @@ async function initializeModelWeights() {
     // Load weights from JSON file
     let data: LogisticWeightsFile;
     
-    // Check if running in Node.js
-    const processInfo =
-      typeof globalThis !== "undefined" &&
-      "process" in globalThis &&
-      typeof globalThis.process === "object"
-        ? (globalThis.process as { versions?: { node?: string } })
-        : null;
-    const isNode = Boolean(processInfo?.versions?.node);
-    
-    if (isNode) {
-      // Node.js: use file system
-      try {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        const weightsPath = path.join(process.cwd(), "public", "logisticRegressionWeights.json");
-        const fileContent = await fs.readFile(weightsPath, "utf-8");
-        data = JSON.parse(fileContent) as LogisticWeightsFile;
-      } catch (importError) {
-        console.warn("Failed to import fs/promises, falling back to fetch:", importError);
-        // Fallback to fetch if fs import fails
-        try {
-          const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
-          if (!response.ok) {
-            throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
-          }
-          data = (await response.json()) as LogisticWeightsFile;
-        } catch (fetchError) {
-          console.warn("Failed to fetch from GitHub, using hardcoded fallback:", fetchError);
-          // Use hardcoded fallback weights
-          data = getFallbackWeights();
-        }
+    // Edge Runtime compatible: use fetch with GitHub fallback
+    try {
+      const response = await fetch("/logisticRegressionWeights.json");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
       }
-    } else {
-      // Browser/Edge: use fetch with GitHub fallback
+      data = (await response.json()) as LogisticWeightsFile;
+    } catch (fetchError) {
+      console.warn("Failed to fetch local weights, trying GitHub:", fetchError);
       try {
-        const response = await fetch("/logisticRegressionWeights.json");
+        const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
         if (!response.ok) {
-          throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
+          throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
         }
         data = (await response.json()) as LogisticWeightsFile;
-      } catch (fetchError) {
-        console.warn("Failed to fetch local weights, trying GitHub:", fetchError);
-        try {
-          const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
-          if (!response.ok) {
-            throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
-          }
-          data = (await response.json()) as LogisticWeightsFile;
-        } catch (githubError) {
-          console.warn("Failed to fetch from GitHub, using hardcoded fallback:", githubError);
-          data = getFallbackWeights();
-        }
+      } catch (githubError) {
+        console.warn("Failed to fetch from GitHub, using hardcoded fallback:", githubError);
+        data = getFallbackWeights();
       }
     }
 

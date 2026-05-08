@@ -10,7 +10,6 @@ export type AppTab =
   | "questionnaire"
   | "result"
   | "intervention"
-  | "insights"
   | "history";
 
 export const STORAGE_KEY = "stuck_sessions_v1";
@@ -54,6 +53,5 @@ export const TAB_LABELS: Record<AppTab, string> = {
   questionnaire: "Questionnaire",
   result: "Result",
   intervention: "Plan",
-  insights: "Insights",
   history: "History",
 };

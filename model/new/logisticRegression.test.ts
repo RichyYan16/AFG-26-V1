@@ -1,6 +1,10 @@
 /**
  * Test script for Logistic Regression classifier
  * Validates that embeddings are correctly classified to stuck types
+ * Tester was generated using Claude Haiku 4.5 based on the following prompt:
+ * 
+ * Prompt: I have implemented a logistic regression classifier in my Unstuck app to classify user embedding vectors into stuck types. I want to create a test script to validate that the classifier is working correctly. The test should create sample 512-dimensional embedding vectors (simulating outputs from Universal Sentence Encoder) and pass them through the classifier. It should then print out the predicted stuck type, confidence scores for each type, and a simple visualization of the confidence distribution (e.g., text-based bar graph). Please generate a test script in TypeScript that accomplishes this.
+ * All logic was implemented by the authors
  */
 
 import {

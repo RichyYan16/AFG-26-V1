@@ -5,6 +5,12 @@ import type {
 } from "@/model/new/types";
 import { STORAGE_KEY } from "./constants";
 
+/**
+ * File containing utility functions for the application, including data validation, local storage management, and API request handling.
+ * @param answers 
+ * @returns answers if all required fields are present, otherwise null
+ */
+
 export function asCompleteAnswers(
   answers: Partial<DiagnosticAnswers>,
 ): DiagnosticAnswers | null {
@@ -19,15 +25,6 @@ export function asCompleteAnswers(
   }
 
   return null;
-}
-
-export function formatTimer(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, totalSeconds);
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
 }
 
 export async function loadUserHistory(userId?: string): Promise<SessionRecord[]> {

@@ -4,6 +4,19 @@ import type {
   SessionOutcome,
 } from "@/model/new/types";
 
+/**
+ * Application-wide constants and type definitions
+ * 
+ * This file centralizes all constant values, type definitions, and label mappings used across the application. It includes:
+ * - Type definitions for application tabs
+ * - Storage keys and limits for session history
+ * - Mappings of question IDs to user-friendly titles
+ * - Mappings of stuck types to descriptive labels and explanations
+ * - Mappings of session outcomes to display labels
+ * 
+ * By centralizing these constants, we ensure consistency across the app and make it easier to manage changes in one place.
+ */
+
 export type AppTab =
   | "home"
   | "introduction"

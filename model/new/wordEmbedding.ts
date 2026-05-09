@@ -8,6 +8,9 @@
  * - Excellent at capturing emotional nuances and psychological complexity
  * - Superior contextual understanding for mental/emotional states
  * - 768 dimensions for richer semantic representation
+ * 
+ * Boilerplate code generated using Claude Haiku 4.5 based on the following prompt:
+ * "Implement boilerplate code for a word embedding module in TypeScript that uses the Nomic Embed Text model to compute semantic similarity between student responses and prototypical stuck type statements. The module should load the embedding model, compute embedding vectors for student answers, and calculate similarity scores to reference anchor statements for each stuck type. Include error handling for model loading and embedding computation, and ensure the module can handle cases where the input text is empty or invalid."
  */
 
 import type { DiagnosticAnswers, StuckType } from "./types";
@@ -30,13 +33,13 @@ async function loadModel() {
   }
 
   try {
-    console.log('📦 Loading embedding model (Xenova/nomic-embed-text-v1)...');
+    console.log('Loading embedding model (Xenova/nomic-embed-text-v1)...');
     embeddingModel = await pipeline('feature-extraction', 'Xenova/nomic-embed-text-v1');
-    console.log('✅ Embedding model loaded successfully (768 dimensions)');
+    console.log('Embedding model loaded successfully (768 dimensions)');
     return embeddingModel;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`❌ CRITICAL: Cannot load embedding model: ${errorMsg}`);
+    console.error(`CRITICAL: Cannot load embedding model: ${errorMsg}`);
     throw new Error(`Failed to load embedding model: ${errorMsg}`);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Structure and styling of History Tab made with Claude Haiku 4.5
+ * Structure (Boilerplate) and styling of History Tab made with Claude Haiku 4.5
  * 
  * Prompt: I am trying to include tab with a list of past sessions, showing the stuck type, confidence, and summary for each. 
  * When I click on a session, it should expand to show the full intervention plan with steps, tips, and resources. 

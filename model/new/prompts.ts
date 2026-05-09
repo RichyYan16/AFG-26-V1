@@ -1,6 +1,10 @@
 /**
- * Gemini Prompt Templates
+ * OpenRouter API Prompt Templates
  * System prompts and prompt generation for all OpenRouter API calls
+ * 
+ * File code generated using Claude Hiaiku 4.5 based on the following prompt:
+ * "Generate boilerplate code to implement prompts for different OpenRouter API tasks related to diagnosing and intervening in academic paralysis."
+ * 
  */
 
 import type { StuckType, DiagnosticAnswers } from "./types";

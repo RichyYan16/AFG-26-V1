@@ -3,6 +3,11 @@ import type { AdaptiveQuestion, DiagnosticAnswers } from "./types";
 /**
  * 5 Open-Response Diagnostic Questions
  * Simplified questionnaire for capturing student stuck feelings
+ * 
+ * Boilerplate code generated using Claude Hiaiku 4.5 based on the following prompt:
+ * 
+ * Prompt: I want to create a set of 5 open-response diagnostic questions for my Unstuck app to capture students' feelings and thoughts when they are stuck on an academic task. Please generate boilerplate code in TypeScript that defines these questions as an array of objects, where each object has an id, prompt text, and any necessary metadata for rendering (e.g., options for multiple choice, slider configuration). The questions should be designed to elicit insights about the student's internal voice, feelings about submitting imperfect work, reasons for wanting to do their best, duration of avoidance, and feelings about seeking help.
+ * All logic was implemented by the authors
  */
 export const DIAGNOSTIC_QUESTIONS: AdaptiveQuestion[] = [
   {

@@ -1,6 +1,12 @@
 /**
  * Logistic Regression Model for Stuck Type Classification
  * Takes embedding vectors and outputs categorical stuck type
+ * 
+ * Logistic regression model was trained by the authors in another environment (Google colab) and made using python. Weights were then stored in a .json file and loaded here for model rebuilding.
+ * 
+ * Code file generated using Claude Haiku 4.5 based on the following prompt:
+ * "Implement a logistic regression classifier in TypeScript that takes embedding vectors as input and outputs a probability distribution over 6 stuck types. The model should load pre-trained weights from a JSON file and apply the logistic regression formula to compute predictions. Include error handling for loading weights and ensure the model can handle cases where the embedding dimension does not match the expected input size by resizing or padding as necessary."
+ * 
  */
 
 import * as tf from "@tensorflow/tfjs";

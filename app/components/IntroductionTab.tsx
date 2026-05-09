@@ -1,9 +1,30 @@
+// Component that provides an introduction to the app, explaining what it does and how it works. It also includes buttons to start the questionnaire or reset to the home screen.
+/**
+ * Boilerplate code and styling was done by Claude Haiku 4.5 based on the following prompt:
+ * 
+ * Prompt: I am trying to design an introduction tab for my app that explains what the app does and how it works. 
+ * I want to include sections on what the app does, details about the questionnaire, and a disclaimer. 
+ * I also want buttons to start the questionnaire or return to the home screen. Generate boilerplate code for me and styling using Tailwind CSS.
+ * 
+ * All logic was implemented by the authors
+ */
 interface IntroductionTabProps {
   loading: boolean;
   onStartQuestionnaire: () => void;
   onResetToHome: () => void;
 }
 
+/**
+ * React Page for Introduction Tab
+ * 
+ * Provides an introduction to the app, explaining its purpose and how it works.
+ * Includes sections on what the app does, details about the questionnaire, and a disclaimer.
+ * Also includes buttons to start the questionnaire or return to the home screen.
+ * @param loading - Whether the app is currently loading (used to disable buttons and show loading state)
+ * @param onStartQuestionnaire - Callback function to start the questionnaire when the user clicks the button
+ * @param onResetToHome - Callback function to reset to the home screen when the user clicks the button
+ * @returns 
+ */
 export function IntroductionTab({ loading, onStartQuestionnaire, onResetToHome }: IntroductionTabProps) {
   return (
     <div className="space-y-6">

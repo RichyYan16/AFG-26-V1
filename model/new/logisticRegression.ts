@@ -4,6 +4,8 @@
  */
 
 import * as tf from "@tensorflow/tfjs";
+import { readFileSync } from "fs";
+import { join } from "path";
 import type { StuckType } from "./types";
 import { EMBEDDING_MODEL_CONFIG } from "./weights";
 
@@ -81,15 +83,13 @@ async function initializeModelWeights() {
     // Load weights from JSON file
     let data: LogisticWeightsFile;
     
-    // Edge Runtime compatible: use fetch with GitHub fallback
+    // Node.js runtime: use fs to read local file
     try {
-      const response = await fetch("/logisticRegressionWeights.json");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
-      }
-      data = (await response.json()) as LogisticWeightsFile;
-    } catch (fetchError) {
-      console.warn("Failed to fetch local weights, trying GitHub:", fetchError);
+      const weightsPath = join(process.cwd(), 'public', 'logisticRegressionWeights.json');
+      const fileContent = readFileSync(weightsPath, 'utf-8');
+      data = JSON.parse(fileContent) as LogisticWeightsFile;
+    } catch (fileError) {
+      console.warn("Failed to read local weights file, trying GitHub:", fileError);
       try {
         const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
         if (!response.ok) {

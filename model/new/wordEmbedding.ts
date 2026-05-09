@@ -1,179 +1,57 @@
 /**
- * Sentence-BERT-based Embedding Model
+ * Nomic Embed Text - Embedding Model
  * Computes semantic similarity between student responses and stuck type anchors
- * Uses @xenova/transformers for efficient ONNX-based inference
+ * Uses @xenova/transformers with TensorFlow.js backend
+ * 
+ * Nomic Embed Text (768-dimensional):
+ * - State-of-the-art semantic embeddings
+ * - Excellent at capturing emotional nuances and psychological complexity
+ * - Superior contextual understanding for mental/emotional states
+ * - 768 dimensions for richer semantic representation
  */
 
-import { env, pipeline } from "@xenova/transformers";
 import type { DiagnosticAnswers, StuckType } from "./types";
 import { EMBEDDING_WEIGHTS } from "./weights";
+import { pipeline, env } from "@xenova/transformers";
 
-const SBERT_MODEL_ID = process.env.SBERT_MODEL_ID || "Xenova/all-MiniLM-L6-v2";
-const SBERT_ALLOW_REMOTE_MODELS =
-  process.env.SBERT_ALLOW_REMOTE_MODELS !== "false";
-const SBERT_LOCAL_MODEL_PATH = process.env.SBERT_LOCAL_MODEL_PATH;
-
-// Sentence-BERT loading configuration:
-// - local models always allowed
-// - remote downloads enabled by default unless explicitly disabled
+// Configure environment for TensorFlow backend
 env.allowLocalModels = true;
-env.allowRemoteModels = SBERT_ALLOW_REMOTE_MODELS;
-if (SBERT_LOCAL_MODEL_PATH) {
-  env.localModelPath = SBERT_LOCAL_MODEL_PATH;
-}
+env.allowRemoteModels = true;
 
-interface EmbeddingResult {
-  data: ArrayLike<number>;
-}
-
-type EmbeddingPipeline = (
-  input: string,
-  options: { pooling: "mean"; normalize: boolean },
-) => Promise<EmbeddingResult>;
-
-let modelCache: EmbeddingPipeline | null = null;
+let embeddingModel: any = null;
 let anchorEmbeddingCache: Record<StuckType, number[][]> | null = null;
 
 /**
- * Load Sentence-BERT model (cached) with timeout and fallback
- * Uses the all-MiniLM-L6-v2 model via @xenova/transformers
+ * Load the Nomic Embed Text embedding model (768-dimensional)
  */
 async function loadModel() {
-  if (!modelCache) {
-    console.log(`Loading Sentence-BERT model: ${SBERT_MODEL_ID}...`);
-    try {
-      // Add timeout for model loading (10 seconds)
-      const modelLoadPromise = pipeline("feature-extraction", SBERT_MODEL_ID);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Model loading timeout')), 10000)
-      );
-      
-      const loadedModel = await Promise.race([modelLoadPromise, timeoutPromise]);
-      
-      // Safety check: ensure loaded model is valid
-      if (!loadedModel) {
-        throw new Error('Model loading returned null/undefined');
-      }
-      
-      modelCache = loadedModel as unknown as EmbeddingPipeline;
-      console.log(" Sentence-BERT model loaded successfully");
-    } catch (error) {
-      console.error(
-        ` Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
-        error,
-      );
-      // Instead of throwing, return a fallback model
-      console.log(' Using fallback embedding model...');
-      modelCache = createFallbackModel();
-    }
+  if (embeddingModel) {
+    return embeddingModel;
   }
-  
-  // Safety check: ensure cached model is valid
-  if (!modelCache) {
-    console.log(' Model cache is null, using fallback...');
-    modelCache = createFallbackModel();
+
+  try {
+    console.log('📦 Loading embedding model (Xenova/nomic-embed-text-v1)...');
+    embeddingModel = await pipeline('feature-extraction', 'Xenova/nomic-embed-text-v1');
+    console.log('✅ Embedding model loaded successfully (768 dimensions)');
+    return embeddingModel;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`❌ CRITICAL: Cannot load embedding model: ${errorMsg}`);
+    throw new Error(`Failed to load embedding model: ${errorMsg}`);
   }
-  
-  return modelCache;
 }
 
 /**
- * Create a simple fallback embedding model that doesn't require heavy ML
- * Uses basic keyword matching and simple vector generation
+ * Load anchor embeddings using the Nomic Embed Text model
+ * These are pre-computed embeddings for each stuck type category
+ * Nomic embeddings (768-dim) capture emotional nuances better than smaller models
  */
-function createFallbackModel(): EmbeddingPipeline {
-  return async (input: string, options: { pooling: "mean"; normalize: boolean }) => {
-    // Simple keyword-based embedding generation
-    const keywords = {
-      confused: [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
-      confusing: [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
-      lost: [0.7, 0.2, 0.1, 0.3, 0.2, 0.1],
-      unclear: [0.6, 0.3, 0.1, 0.2, 0.1, 0.1],
-      ambiguous: [0.2, 0.8, 0.1, 0.1, 0.1, 0.1],
-      uncertain: [0.3, 0.7, 0.1, 0.2, 0.1, 0.1],
-      scared: [0.1, 0.1, 0.8, 0.3, 0.2, 0.1],
-      afraid: [0.1, 0.1, 0.9, 0.2, 0.1, 0.1],
-      anxious: [0.2, 0.2, 0.7, 0.4, 0.3, 0.2],
-      overwhelmed: [0.3, 0.2, 0.6, 0.8, 0.4, 0.3],
-      too_much: [0.2, 0.1, 0.4, 0.9, 0.5, 0.3],
-      exhausted: [0.1, 0.1, 0.3, 0.4, 0.9, 0.4],
-      tired: [0.1, 0.2, 0.2, 0.3, 0.8, 0.5],
-      burned_out: [0.2, 0.1, 0.3, 0.5, 0.8, 0.4],
-      perfect: [0.1, 0.1, 0.2, 0.1, 0.2, 0.8],
-      perfectionism: [0.1, 0.1, 0.1, 0.1, 0.2, 0.9],
-    };
-
-    const lowerInput = input.toLowerCase();
-    let embedding = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]; // Default baseline
-
-    // Check for keywords and accumulate scores
-    for (const [keyword, vector] of Object.entries(keywords)) {
-      if (lowerInput.includes(keyword)) {
-        embedding = embedding.map((val, idx) => Math.max(val, vector[idx]));
-      }
-    }
-
-    // Simple normalization
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    if (magnitude > 0) {
-      embedding = embedding.map(val => val / magnitude);
-    }
-
-    return { data: embedding };
-  };
-}
-
-/**
- * Get fallback anchor embeddings for when model loading fails
- */
-function getFallbackAnchorEmbeddings(): Record<StuckType, number[][]> {
-  return {
-    confusion: [
-      [0.8, 0.1, 0.1, 0.2, 0.1, 0.1],
-      [0.7, 0.2, 0.1, 0.3, 0.2, 0.1],
-      [0.6, 0.3, 0.1, 0.2, 0.1, 0.1],
-    ],
-    ambiguity: [
-      [0.2, 0.8, 0.1, 0.1, 0.1, 0.1],
-      [0.3, 0.7, 0.1, 0.2, 0.1, 0.1],
-      [0.1, 0.9, 0.1, 0.1, 0.1, 0.1],
-    ],
-    fear: [
-      [0.1, 0.1, 0.8, 0.3, 0.2, 0.1],
-      [0.1, 0.1, 0.9, 0.2, 0.1, 0.1],
-      [0.2, 0.2, 0.7, 0.4, 0.3, 0.2],
-    ],
-    overwhelm: [
-      [0.3, 0.2, 0.6, 0.8, 0.4, 0.3],
-      [0.2, 0.1, 0.4, 0.9, 0.5, 0.3],
-      [0.1, 0.2, 0.5, 0.8, 0.4, 0.2],
-    ],
-    exhaustion: [
-      [0.1, 0.1, 0.3, 0.4, 0.9, 0.4],
-      [0.1, 0.2, 0.2, 0.3, 0.8, 0.5],
-      [0.2, 0.1, 0.3, 0.5, 0.8, 0.4],
-    ],
-    perfection_loop: [
-      [0.1, 0.1, 0.2, 0.1, 0.2, 0.8],
-      [0.1, 0.1, 0.1, 0.1, 0.2, 0.9],
-      [0.2, 0.1, 0.2, 0.2, 0.3, 0.8],
-    ],
-  };
-}
-
-async function loadAnchorEmbeddings(
-  model: EmbeddingPipeline,
-): Promise<Record<StuckType, number[][]>> {
+async function loadAnchorEmbeddings(): Promise<Record<StuckType, number[][]>> {
   if (anchorEmbeddingCache) {
     return anchorEmbeddingCache;
   }
 
-  // Safety check: ensure model is valid
-  if (!model) {
-    console.error(' Invalid model provided to loadAnchorEmbeddings');
-    console.log(' Using fallback anchor embeddings...');
-    return getFallbackAnchorEmbeddings();
-  }
+  const model = await loadModel();
 
   const cache: Record<StuckType, number[][]> = {
     confusion: [],
@@ -192,18 +70,18 @@ async function loadAnchorEmbeddings(
       ) as [StuckType, string[]][]) {
         for (const anchor of anchors) {
           try {
-            const anchorResult = await model(anchor, {
+            const result = await model(anchor, {
               pooling: "mean",
               normalize: true,
             });
             
-            // Safety check: ensure anchorResult and anchorResult.data are valid
-            if (!anchorResult || !anchorResult.data) {
-              console.error(` Invalid anchor result for "${anchor}":`, anchorResult);
+            // Safety check: ensure result and result.data are valid
+            if (!result || !result.data) {
+              console.error(` Invalid anchor result for "${anchor}":`, result);
               continue;
             }
             
-            cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+            cache[stuckType].push(Array.from(result.data) as number[]);
           } catch (error) {
             console.error(` Failed to process anchor "${anchor}":`, error);
             // Continue with other anchors
@@ -222,9 +100,7 @@ async function loadAnchorEmbeddings(
     return anchorEmbeddingCache;
   } catch (error) {
     console.error(' Anchor embedding processing failed:', error);
-    console.log(' Using fallback anchor embeddings...');
-    anchorEmbeddingCache = getFallbackAnchorEmbeddings();
-    return anchorEmbeddingCache;
+    throw new Error(`Failed to load anchor embeddings: ${error}`);
   }
 }
 
@@ -291,8 +167,9 @@ const STUCK_TYPE_ANCHORS: Record<StuckType, string[]> = {
 
 /**
  * Compute raw embedding vector from student answers
- * Returns the 384-dimensional vector representation [a, b, c, ...]
+ * Returns the 768-dimensional vector representation [a, b, c, ...]
  * This vector captures the semantic/emotional essence of their responses
+ * Nomic embeddings excel at capturing psychological complexity and emotional nuance
  */
 export async function computeEmbeddingVector(
   answers: DiagnosticAnswers,
@@ -341,7 +218,7 @@ export async function computeEmbeddingVector(
     console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
     return studentVec;
   } catch (e) {
-    console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(` Unable to compute embedding: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }
@@ -355,8 +232,8 @@ export async function computeEmbeddingScores(
   answers: DiagnosticAnswers,
 ): Promise<Record<StuckType, number>> {
   try {
-    const model = await loadModel();
-    const anchorEmbeddings = await loadAnchorEmbeddings(model);
+    await loadModel(); // Ensure model is loaded
+    const anchorEmbeddings = await loadAnchorEmbeddings();
 
     // Get raw embedding vector
     const studentVec = await computeEmbeddingVector(answers);
@@ -390,7 +267,7 @@ export async function computeEmbeddingScores(
     // Normalize scores
     return normalizeScores(scores);
   } catch (e) {
-    console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(` Unable to compute scores: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }
@@ -484,16 +361,16 @@ export async function getEmbeddingSimilarityBreakdown(
   answers: DiagnosticAnswers,
 ): Promise<Record<StuckType, { anchors: string[]; similarities: number[] }>> {
   const model = await loadModel();
-  const anchorEmbeddings = await loadAnchorEmbeddings(model);
+  const anchorEmbeddings = await loadAnchorEmbeddings();
   const studentText = Object.values(answers)
     .filter(Boolean)
     .join(" ");
 
-  const studentResult = await model(studentText, {
+  const result = await model(studentText, {
     pooling: "mean",
     normalize: true,
   });
-  const studentVec = Array.from(studentResult.data) as number[];
+  const studentVec = Array.from(result.data) as number[];
 
   const breakdown: Record<
     StuckType,

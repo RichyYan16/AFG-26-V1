@@ -72,23 +72,10 @@ export {
 } from "./interventionGenerator";
 
 // ============================================
-// COGNITIVE DISTORTION EXPORTS
-// ============================================
-export {
-  detectThoughtDistortions,
-  buildSafetyFlags,
-  buildDistortionReport,
-  DISTORTION_REFRAMES,
-} from "./cognitiveDistortions";
-
-export type { DistortionReport } from "./cognitiveDistortions";
-
-// ============================================
 // WEIGHTS EXPORTS
 // ============================================
 export {
   EMBEDDING_WEIGHTS,
-  DISTORTION_WEIGHTS,
   DIAGNOSIS_THRESHOLDS,
   BEHAVIORAL_SIGNAL_WEIGHTS,
   CRISIS_WEIGHTS,

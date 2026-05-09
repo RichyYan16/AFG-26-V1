@@ -11,7 +11,7 @@
  * Architecture:
  * - View Layer: React components (Header, Tabs, Navigation)
  * - State Management: React hooks (useState, useEffect, useMemo)
- * - Custom Hooks: useHistory (session persistence), useTimer (intervention tracking)
+ * - Custom Hooks: useHistory (session persistence)
  * - Services: diagnosis (ML pipeline), api (chat integration)
  * - Utilities: cache (session data), errorHandling (user feedback)
  * 
@@ -42,7 +42,6 @@ import {
 } from "./services/diagnosis";
 import { handleAsyncError, ERROR_MESSAGES } from "./utils/errorHandling";
 import { initializeCache, cacheQuestionnaire, getCachedQuestionnaire } from "./utils/cache";
-import { useTimer } from "./hooks/useTimer";
 import { useHistory } from "./hooks/useHistory";
 
 import { Header } from "./components/Header";
@@ -70,9 +69,6 @@ export default function StuckApp() {
   const [selectedOutcome, setSelectedOutcome] =
     useState<SessionOutcome>("started");
   const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
-  const [activeTimerStepId, setActiveTimerStepId] = useState<string | null>(
-    null,
-  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -87,7 +83,6 @@ export default function StuckApp() {
   const [noticeTimer, setNoticeTimer] = useState<NodeJS.Timeout | null>(null);
 
   const { history, hydrated, clearHistory: clearHistoryHook, addToHistory, deleteSession } = useHistory();
-  const { secondsLeft: timerSecondsLeft, running: timerRunning, start: startTimer, toggle: toggleTimer, reset: resetTimerHook, stop: stopTimer } = useTimer();
 
   // Initialize cache on app start
   useEffect(() => {
@@ -146,23 +141,12 @@ export default function StuckApp() {
     return Math.round((answeredCount / questionQueue.length) * 100);
   }, [answeredCount, questionQueue.length]);
 
-  const activeStep = useMemo(
-    () => {
-      if (!plan || activeTimerStepId === null) return null;
-      const stepIndex = parseInt(activeTimerStepId, 10);
-      return plan.steps[stepIndex] ?? null;
-    },
-    [activeTimerStepId, plan],
-  );
-
   function resetResultState(): void {
     setAssessment(null);
     setPlan(null);
     setProfile(null);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
-    setActiveTimerStepId(null);
-    stopTimer();
     setSessionKey(""); // Reset session key
   }
 
@@ -191,8 +175,6 @@ export default function StuckApp() {
     setProfile(response.profile);
     setSelectedOutcome("started");
     setCompletedStepIds([]);
-    setActiveTimerStepId(null);
-    stopTimer();
   }
 
   async function beginAssessment(): Promise<void> {
@@ -447,11 +429,6 @@ export default function StuckApp() {
         ? previous.filter((id) => id !== stepId)
         : [...previous, stepId],
     );
-  }
-
-  function startStepTimer(stepId: string, minutes: number): void {
-    setActiveTimerStepId(stepId);
-    startTimer(minutes);
   }
 
   async function handleGenerateInterventions(): Promise<void> {

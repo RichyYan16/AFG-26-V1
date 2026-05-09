@@ -1,12 +1,12 @@
 /**
  * Gemini Prompt Templates
- * System prompts and prompt generation for all Gemini API calls
+ * System prompts and prompt generation for all OpenRouter API calls
  */
 
 import type { StuckType, DiagnosticAnswers } from "./types";
 
 /**
- * System prompts for different Gemini tasks
+ * System prompts for different OpenRouter tasks
  */
 export const SYSTEM_PROMPTS = {
   diagnosis: `You are an expert in academic psychology, student motivation, and learning science.

@@ -5,7 +5,7 @@
  */
 
 /* Import the type unions used to keep weight maps strongly typed. */
-import type { StuckType, DistortionType } from "./types";
+import type { StuckType } from "./types";
 
 
 // EMBEDDING MODEL WEIGHTS (Word2Vec/USE)
@@ -46,43 +46,6 @@ export const EMBEDDING_WEIGHTS: Record<
   perfection_loop: {
     boostMultiplier: 1.25,
     similarityThreshold: 0.42,
-  },
-} as const;
-
-
-// COGNITIVE DISTORTION WEIGHTS
-
-export const DISTORTION_WEIGHTS: Record<
-  DistortionType,
-  {
-    severity: number;
-    patterns: RegExp[];
-  }
-> = {
-  /* Catastrophizing is treated as the most severe distortion here. */
-  catastrophizing: {
-    severity: 3,
-    patterns: [/\bruin everything\b/i, /\bdoomed\b/i, /\bwill fail\b/i],
-  },
-  /* All-or-nothing language is important but slightly less severe. */
-  allOrNothing: {
-    severity: 2,
-    patterns: [/\beither|or\b/i, /\bperfect or fail\b/i, /\ball or nothing\b/i],
-  },
-  /* Mind-reading cues help detect hidden social fear or anxiety. */
-  mindReading: {
-    severity: 1,
-    patterns: [/\bthey think\b/i, /\bwill judge\b/i, /\bthinking about me\b/i],
-  },
-  /* "Should" language often signals pressure, guilt, or rigid expectations. */
-  shouldStatements: {
-    severity: 2,
-    patterns: [/\bshould|must|have to|ought to\b/i],
-  },
-  /* Overgeneralization catches absolute language and repeated negative conclusions. */
-  overgeneralization: {
-    severity: 2,
-    patterns: [/\balways|never|every time\b/i, /\bnothing ever works\b/i],
   },
 } as const;
 

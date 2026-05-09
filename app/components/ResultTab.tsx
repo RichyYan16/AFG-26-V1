@@ -3,6 +3,20 @@ import { STUCK_TYPE_LABELS, STUCK_TYPE_DESCRIPTIONS } from "../constants";
 import { generateAISummary } from "../services/diagnosis";
 import type { DiagnosisResult, TypeScore } from "@/model/new/types";
 
+/**
+ * ResultTabProps defines the props for the ResultTab component, which displays the diagnosis results and allows users to generate intervention plans.
+ * - diagnosis: The result of the diagnosis, including the primary stuck type and ranked types with scores.
+ * - loadingInterventions: A boolean indicating whether the intervention plans are currently being generated.
+ * - onGenerateInterventions: A callback function to trigger the generation of intervention plans when the user clicks the button.
+ * - onNavigateToIntervention: A callback function to navigate to the Intervention tab after generating plans.
+ * 
+ * Boilerplate code and styling was done by Claude Haiku 4.5 based on the following prompt:
+ * Prompt: I am trying to design a Result tab for my app that displays the results of the diagnosis. It should show the primary stuck type, a ranked list of other potential types with confidence scores, and a personalized summary of the diagnosis.
+ * Give me boilerplate/starter code for the component structure and styling using Tailwind CSS. The component should also include a button to generate personalized intervention plans based on the diagnosis results, which will navigate to the Intervention tab when clicked.
+ * 
+ * All logic was implemented by the authors
+ */
+
 interface ResultTabProps {
   diagnosis: DiagnosisResult | null;
   loadingInterventions: boolean;

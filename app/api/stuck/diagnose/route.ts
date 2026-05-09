@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 import {
   diagnoseWithHybridModel,
   buildMultipleInterventionPlans,
-  detectThoughtDistortions,
-  buildSafetyFlags,
 } from "@/model/new/index";
 import {
   isDiagnosticComplete,
@@ -134,25 +132,6 @@ export async function POST(req: Request) {
     const studentStatement = Object.values(validation.data.answers)
       .filter((v) => typeof v === "string")
       .join(" ");
-
-    try {
-      detectThoughtDistortions({
-        studentStatement,
-      });
-    } catch (distortionError) {
-      console.error('Distortion detection failed:', distortionError);
-      // Continue without distortion analysis
-    }
-
-    try {
-      buildSafetyFlags({
-        studentStatement,
-        shameScore: diagnosis.confidence > 0.8 ? 0.7 : 0.3,
-      });
-    } catch (safetyError) {
-      console.error('Safety flag detection failed:', safetyError);
-      // Continue without safety flags
-    }
 
     // Return DiagnosedResponse format
     return NextResponse.json(

@@ -1,5 +1,15 @@
 import Image from "next/image";
 
+/**
+ * Initial landing page with a call-to-action to start the prediction process.
+ * Used Claude Haiku 4.5 to generate styling for home tab (landing page) based on the following prompt:
+ * 
+ * Prompt: Design the Home tab for my Unstuck app. This is the initial landing page that users see when they open the app. It should have an engaging headline and a brief description of how the app works and how it can help the user. 
+ * Include an illustrative image that visually represents the concept of getting "unstuck" in academic work. 
+ * Use Tailwind CSS for styling and make sure it looks inviting and easy to understand for users who are feeling overwhelmed or stuck.
+ * 
+ * All logic was implemented by the authors
+ */
 interface HomeTabProps {
   loading: boolean;
   onBeginDiagnosis: () => void;

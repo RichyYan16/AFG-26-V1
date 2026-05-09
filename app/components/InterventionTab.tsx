@@ -1,3 +1,14 @@
+/*
+InterventionTab component for displaying personalized intervention plans based on the user's assessment results.
+Used Claude Haiku 4.5 to generate code structure and styling based on the following prompt:
+
+Prompt: I am trying to design a tab for my app to display potential intervention plans based on predicted stuck types and confidence. Generate boilerplate code for me and stylign using Tailwind CSS.
+(Boilerplate/Starter code:
+emply interface block and function block with props for loading state, intervention plans, and callback functions for saving session, navigating to results, and beginning a new diagnosis.)
+
+All logic was implemented by the authors
+*/
+
 interface InterventionTabProps {
   loadingInterventions: boolean;
   interventionPlans: Array<{action: string; resources?: string[]}>;

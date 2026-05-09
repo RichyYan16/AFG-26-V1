@@ -1,3 +1,23 @@
+/**
+ * Unstuck - Academic Paralysis Diagnostic Application
+ * 
+ * Main application component managing the complete student assessment workflow:
+ * 1. Introduction & questionnaire for initial response collection
+ * 2. Adaptive follow-up questions based on AI analysis
+ * 3. Diagnosis of academic paralysis type (confusion, fear, overwhelm, etc.)
+ * 4. Personalized intervention plan generation
+ * 5. Session history tracking and insights dashboard
+ * 
+ * Architecture:
+ * - View Layer: React components (Header, Tabs, Navigation)
+ * - State Management: React hooks (useState, useEffect, useMemo)
+ * - Custom Hooks: useHistory (session persistence), useTimer (intervention tracking)
+ * - Services: diagnosis (ML pipeline), api (chat integration)
+ * - Utilities: cache (session data), errorHandling (user feedback)
+ * 
+ * @module app/page
+ */
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

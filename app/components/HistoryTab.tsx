@@ -1,13 +1,37 @@
+/**
+ * Structure and styling of History Tab made with Claude Haiku 4.5
+ * 
+ * Prompt: I am trying to include tab with a list of past sessions, showing the stuck type, confidence, and summary for each. 
+ * When I click on a session, it should expand to show the full intervention plan with steps, tips, and resources. 
+ * I also want buttons to navigate to the Insights tab and to clear history. Give me boilerplate code to help me implement this
+ * 
+ * All logic was implemented by the authors
+ */
+
 import { useState } from "react";
 import { STUCK_TYPE_LABELS, OUTCOME_LABELS } from "../constants";
 import type { SessionRecord } from "@/model/new/types";
 
+
+/** Props for HistoryTab component. 
+ * Includes the session history and callback functions for navigating to insights, clearing history, and deleting individual sessions.
+ * onNavigateToInsights: Callback to switch to the Insights tab when user clicks the button
+ * onClearHistory: Callback to clear all session history when user clicks the button
+ * onDeleteSession: Callback to delete a specific session from history when user clicks the delete button on a session entry
+ * history: An array of SessionRecord objects representing the user's past sessions, ordered from most recent to oldest
+ */ 
 interface HistoryTabProps {
   history: SessionRecord[];
   onClearHistory: () => void;
   onDeleteSession: (sessionId: string) => void;
 }
 
+/** Custom react component that displays History tab with list of past sessions, expandable details, and action buttons 
+ * - Displays a list of recent sessions (up to 6) with stuck type, confidence, and summary
+ * - Each session can be expanded to show the full intervention plan with steps, tips, and resources
+ * - Includes buttons to navigate to Insights tab and to clear all history
+ * - Allows deleting individual sessions from history
+ */
 export function HistoryTab({ history, onClearHistory, onDeleteSession }: HistoryTabProps) {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const recentHistory = history.slice(0, 6);
@@ -19,11 +43,13 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
           Recent Sessions
         </h3>
 
+        {/* List of recent sessions with expandable details. Checks if recentHistory is greater than 0 */}
         {recentHistory.length > 0 ? (
           <div className="mt-3 space-y-2">
             {recentHistory.map((session) => (
               <div key={session.id} className="rounded-lg border border-emerald-800 bg-emerald-950/60">
                 <div className="flex items-start gap-2 p-3">
+                  {/* Button to expand/collapse session details. Highlights the button when expanded */}
                   <button
                     type="button"
                     onClick={() => setExpandedSession(
@@ -31,6 +57,7 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
                     )}
                     className="flex-1 text-left hover:border-lime-500 rounded-lg p-1"
                   >
+                    {/* Displays the stuck type label and confidence for each session. If sessionSummary is available, it also shows the primary plan headline and confidence percentage. */}
                     <div className="space-y-1">
                       <p className="text-sm font-medium">
                         {STUCK_TYPE_LABELS[session.stuckType]}
@@ -43,6 +70,7 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
                       )}
                     </div>
                   </button>
+                  {/* Delete button for each session entry */}
                   <button
                     type="button"
                     onClick={() => onDeleteSession(session.id)}
@@ -55,6 +83,7 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
                   </button>
                 </div>
                 
+                {/* Expanded details section that shows the full intervention plan with steps, tips, and resources when a session is expanded. Only shows if the current session is the one that is expanded. */}
                 {expandedSession === session.id && (
                   <div className="border-t border-emerald-800 p-3 bg-emerald-950/40">
                     <div className="space-y-3">
@@ -63,7 +92,7 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
                         <p className="text-sm text-emerald-300">{session.interventionPlan.headline}</p>
                         <p className="text-xs text-emerald-400 mt-1">{session.interventionPlan.whyItWorks}</p>
                       </div>
-                      
+                      {/* Steps section that iterates through the steps in the intervention plan and displays the action, tip, and resources for each step. Only shows if steps are available in the intervention plan. */}
                       <div>
                         <h5 className="text-xs font-semibold text-emerald-200 mb-2">Steps:</h5>
                         <div className="space-y-2">
@@ -73,6 +102,7 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
                               {step.tip && (
                                 <p className="text-emerald-400 mt-1 ml-2">💡 {step.tip}</p>
                               )}
+                              {/* Checks if resources are available for the step and displays them in a list format. Only shows if resources array is not empty. */}
                               {step.resources && step.resources.length > 0 && (
                                 <div className="mt-1 ml-2">
                                   <p className="text-emerald-400 font-medium">Resources:</p>
@@ -100,11 +130,13 @@ export function HistoryTab({ history, onClearHistory, onDeleteSession }: History
           </div>
         ) : (
           <p className="mt-3 text-sm text-emerald-300">
+            {/* Message to show when there are no saved sessions in history. Only shows if recentHistory length is 0. */}
             No saved sessions yet.
           </p>
         )}
       </div>
 
+      {/* Action buttons to navigate to Insights tab and to clear all history. The Clear History button only shows if there is at least one session in history. */}
       <div className="flex flex-wrap gap-2">
         {history.length > 0 && (
           <button

@@ -1,6 +1,9 @@
 /**
  * Intervention Plan Generator
  * Uses fallback logic to generate intervention plans
+ * 
+ * Boilerplate code generated using Claude Hiaiku 4.5 based on the following prompt:
+ * "Implement boilerplate code for an intervention plan generator in TypeScript that creates personalized, actionable plans for students based on their diagnosed stuck type. The generator should produce a clear headline, a brief explanation of why the plan works, 3-5 specific steps with estimated time commitments, and a reflection prompt to encourage metacognition. Use fallback logic to provide a default intervention plan for each stuck type in case the Gemini API fails to generate a plan."
  */
 
 import type {

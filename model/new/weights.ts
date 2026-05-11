@@ -5,7 +5,7 @@
  */
 
 /* Import the type unions used to keep weight maps strongly typed. */
-import type { StuckType, DistortionType } from "./types";
+import type { StuckType } from "./types";
 
 
 // EMBEDDING MODEL WEIGHTS (Word2Vec/USE)
@@ -46,43 +46,6 @@ export const EMBEDDING_WEIGHTS: Record<
   perfection_loop: {
     boostMultiplier: 1.25,
     similarityThreshold: 0.42,
-  },
-} as const;
-
-
-// COGNITIVE DISTORTION WEIGHTS
-
-export const DISTORTION_WEIGHTS: Record<
-  DistortionType,
-  {
-    severity: number;
-    patterns: RegExp[];
-  }
-> = {
-  /* Catastrophizing is treated as the most severe distortion here. */
-  catastrophizing: {
-    severity: 3,
-    patterns: [/\bruin everything\b/i, /\bdoomed\b/i, /\bwill fail\b/i],
-  },
-  /* All-or-nothing language is important but slightly less severe. */
-  allOrNothing: {
-    severity: 2,
-    patterns: [/\beither|or\b/i, /\bperfect or fail\b/i, /\ball or nothing\b/i],
-  },
-  /* Mind-reading cues help detect hidden social fear or anxiety. */
-  mindReading: {
-    severity: 1,
-    patterns: [/\bthey think\b/i, /\bwill judge\b/i, /\bthinking about me\b/i],
-  },
-  /* "Should" language often signals pressure, guilt, or rigid expectations. */
-  shouldStatements: {
-    severity: 2,
-    patterns: [/\bshould|must|have to|ought to\b/i],
-  },
-  /* Overgeneralization catches absolute language and repeated negative conclusions. */
-  overgeneralization: {
-    severity: 2,
-    patterns: [/\balways|never|every time\b/i, /\bnothing ever works\b/i],
   },
 } as const;
 
@@ -197,10 +160,10 @@ export const QUESTION_WEIGHTS = {
 export const EMBEDDING_MODEL_CONFIG = {
   /* The embedding model label used by the app's vector logic. */
   model: "sentence-bert",
-  /* paraphrase-MiniLM-L3-v2 produces 384-dimensional embeddings. */
+  /* Sentence-BERT MiniLM produces 384-dimensional embeddings. */
   dimension: 384,
   /* Hosted model identifier used by Xenova's transformers runtime. */
-  modelUrl: "Xenova/paraphrase-MiniLM-L3-v2",
+  modelUrl: "Xenova/all-MiniLM-L6-v2",
   /* Cache embeddings locally to avoid repeated recomputation. */
   cacheEmbeddings: true,
 } as const;

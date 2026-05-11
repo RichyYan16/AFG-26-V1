@@ -1,6 +1,21 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-require-imports */
 
+/**
+ * Train logistic regression weights on student_datav5 dataset
+ * Uses Xenova/all-MiniLM-L6-v2 for text embeddings (384 dimensions)
+ * Saves weights and metadata to logisticRegressionWeights.json
+ * 
+ * File generated using Claude Haiku 4.5 with the following prompt:
+ * "Write a Node.js script that trains a multinomial logistic regression model on the student_datav5 dataset. The script should:
+ * - Load the dataset from student_datav5.txt
+ * - Infer labels based on the primaryCause and text fields using keyword patterns
+ * - Use the Xenova/all-MiniLM-L6-v2 model to embed the text fields into 384-dimensional vectors
+ * - Train a logistic regression model with L2 regularization, using class weights to handle imbalance
+ * - Evaluate on a validation split and print accuracy and macro F1 score
+ * - Save the final weights, biases, and metadata (including training details and evaluation metrics) to logisticRegressionWeights.json in both the current directory and public directory"
+ */
+
 const fs = require("fs/promises");
 const path = require("path");
 const tf = require("@tensorflow/tfjs");

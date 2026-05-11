@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 import {
   diagnoseWithHybridModel,
   buildMultipleInterventionPlans,
-  detectThoughtDistortions,
-  buildSafetyFlags,
 } from "@/model/new/index";
 import {
   isDiagnosticComplete,
@@ -55,21 +53,10 @@ function validatePayload(
 
 export async function POST(req: Request) {
   try {
-    console.log("\n" + "=".repeat(80));
-    console.log("🚀 DIAGNOSE API ENDPOINT CALLED");
-    console.log("=".repeat(80));
-    console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
-    console.log(`🌐 URL: ${req.url}`);
-    console.log(`📋 Method: ${req.method}`);
+    console.log('Diagnose endpoint called');
 
     const body = await req.json();
-    console.log(`📦 Request body received: ${JSON.stringify(body, null, 2)}`);
-    
     const validation = validatePayload(body);
-    console.log(`✅ Validation result: ${validation.ok ? 'PASS' : 'FAIL'}`);
-    if (!validation.ok) {
-      console.log(`❌ Validation error: ${validation.error}`);
-    }
 
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
@@ -98,25 +85,12 @@ export async function POST(req: Request) {
     // Run diagnosis with fallback
     let diagnosis;
     try {
-      console.log("\n🔄 CALLING DIAGNOSIS MODEL...");
-      console.log(`📋 Answers being passed: ${JSON.stringify(validation.data.answers, null, 2)}`);
-      console.log(`📋 Context being passed: ${JSON.stringify(validation.data.context, null, 2)}`);
-      
-      const diagnosisStartTime = performance.now();
-      
       diagnosis = await diagnoseWithHybridModel(
         validation.data.answers as DiagnosticAnswers,
         validation.data.context
       );
-      
-      const diagnosisTime = performance.now() - diagnosisStartTime;
-      console.log(`✅ Diagnosis completed in ${diagnosisTime.toFixed(2)}ms`);
-      console.log(`📊 Diagnosis result: ${JSON.stringify(diagnosis, null, 2)}`);
-      
     } catch (modelError) {
-      console.error('❌ Model prediction failed, using fallback:', modelError);
-      console.error(`   Error type: ${modelError instanceof Error ? modelError.constructor.name : typeof modelError}`);
-      console.error(`   Error message: ${modelError instanceof Error ? modelError.message : String(modelError)}`);
+      console.error('Model prediction failed, using fallback:', modelError);
       // Fallback to simple rule-based diagnosis
       diagnosis = {
         primaryType: "confusion" as const,
@@ -159,38 +133,9 @@ export async function POST(req: Request) {
       .filter((v) => typeof v === "string")
       .join(" ");
 
-    try {
-      detectThoughtDistortions({
-        studentStatement,
-      });
-    } catch (distortionError) {
-      console.error('Distortion detection failed:', distortionError);
-      // Continue without distortion analysis
-    }
-
-    try {
-      buildSafetyFlags({
-        studentStatement,
-        shameScore: diagnosis.confidence > 0.8 ? 0.7 : 0.3,
-      });
-    } catch (safetyError) {
-      console.error('Safety flag detection failed:', safetyError);
-      // Continue without safety flags
-    }
-
     // Return DiagnosedResponse format
-    console.log("\n📤 PREPARING API RESPONSE...");
-    console.log(`📊 Primary type in diagnosis: ${diagnosis?.primaryType || 'Unknown'}`);
-    console.log(`📊 Number of ranked types: ${diagnosis?.rankedTypes?.length || 0}`);
-    
-    if (diagnosis?.rankedTypes) {
-      console.log("🏆 TOP 3 RANKED TYPES:");
-      diagnosis.rankedTypes.slice(0, 3).forEach((rank, i) => {
-        console.log(`   ${i + 1}. ${rank.type}: ${(rank.normalized * 100).toFixed(1)}%`);
-      });
-    }
-    
-    const response = {
+    return NextResponse.json(
+      {
         status: "diagnosed",
         diagnosis,
         plan,
@@ -203,20 +148,11 @@ export async function POST(req: Request) {
           distortionFrequency: {},
           sessionHistory: [],
         }, // TODO: Build from history
-      };
-    
-    console.log(`📤 Sending response with status: ${response.status}`);
-    console.log("=".repeat(80) + "\n");
-    
-    return NextResponse.json(response, { status: 200 });
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("\n❌ API ENDPOINT ERROR:");
-    console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
-    if (error instanceof Error && error.stack) {
-      console.error(`   Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
-    }
-    console.log("=".repeat(80) + "\n");
-    
+    console.error("Error in diagnose endpoint:", error);
     return NextResponse.json(
       {
         error: "Diagnosis failed",

@@ -7,15 +7,6 @@ interface ChatMessage {
   content: string;
 }
 
-
-interface GroqContent {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-}
-
 interface OpenRouterContent {
   choices?: Array<{
     message?: {
@@ -162,4 +153,3 @@ async function callOpenRouter(messages: ChatMessage[], apiKey: string): Promise<
   // All models failed
   throw lastError || new Error("All models failed");
 }
-

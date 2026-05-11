@@ -1,19 +1,25 @@
 /**
- * Gemini Prompt Templates
- * System prompts and prompt generation for all Gemini API calls
+ * OpenRouter API Prompt Templates
+ * System prompts and prompt generation for all OpenRouter API calls
+ * 
+ * File code generated using Claude Hiaiku 4.5 based on the following prompt:
+ * "Generate boilerplate code to implement prompts for different OpenRouter API tasks related to diagnosing and intervening in academic paralysis."
+ * 
  */
 
 import type { StuckType, DiagnosticAnswers } from "./types";
 
 /**
- * System prompts for different Gemini tasks
+ * System prompts for different OpenRouter tasks
  */
 export const SYSTEM_PROMPTS = {
   diagnosis: `You are an expert in academic psychology, student motivation, and learning science.
 Your role is to diagnose which type of academic paralysis a student is experiencing.
 Be empathetic, specific, and actionable. Avoid academic jargon.
 Base your diagnosis on the student's own words, not assumptions.
-Provide hope and clarity that this is solvable.`,
+Provide hope and clarity that this is solvable.
+
+Feel free to respond naturally while including the key information needed. You can use conversational language and add encouraging insights beyond just the facts.`,
 
   followUpQuestion: `You are a diagnostic questionnaire designer specializing in academic paralysis.
 Generate ONE clarifying question that will help refine the diagnosis.
@@ -22,13 +28,16 @@ The question should:
 - Be under 20 words
 - Not repeat what we already asked
 - Help distinguish between 2-3 possible stuck types
-Return ONLY the question text, no explanation, no markdown.`,
+
+Feel free to make it sound natural and supportive, like you're actually talking to someone who needs help.`,
 
   intervention: `You are a micro-intervention designer for students experiencing academic paralysis.
 Your interventions are tiny (5-20 minutes), immediately actionable, and psychology-informed.
 They work because they address the ROOT of the stuck type, not just symptoms.
 Use encouraging, jargon-free language.
-Make it feel doable, not overwhelming.`,
+Make it feel doable, not overwhelming.
+
+You have flexibility to be creative with the intervention steps and explanations. Focus on what would genuinely help someone in this situation.`,
 };
 
 /**
@@ -52,16 +61,13 @@ ${Object.entries(embeddingScores)
   .map(([type, score]) => `- ${type}: ${(score * 100).toFixed(0)}%`)
   .join("\n")}
 
-Based on these inputs, provide a JSON response with:
-{
-  "primaryType": "<confusion|ambiguity|fear|overwhelm|exhaustion|perfection_loop>",
-  "confidence": <0.0 to 1.0>,
-  "factors": ["<top 3 contributing factors>"],
-  "summary": "<1-2 sentence empathetic summary>"
-}
+Based on these inputs, provide a diagnosis. Please include:
+- The primary stuck type (confusion, ambiguity, fear, overwhelm, exhaustion, or perfection_loop)
+- Your confidence level (0.0 to 1.0)
+- The top 3 contributing factors you notice
+- A brief empathetic summary (1-2 sentences)
 
-Return ONLY valid JSON, no markdown.
-`;
+You can respond in a natural, conversational way while including this information. Feel free to add encouraging insights or observations that might help the student feel understood.`;
 }
 
 /**
@@ -93,8 +99,7 @@ The question should:
 - Not repeat anything already asked
 - Feel natural and non-clinical
 
-Return ONLY the question text, no explanation, no quotes, no markdown.
-`;
+Just give me the question itself - you can make it sound warm and encouraging.`;
 }
 
 /**
@@ -134,17 +139,13 @@ Generate a micro-intervention plan that:
 4. Explains WHY each step works (psychology)
 5. Ends with a reflection prompt
 
-Return ONLY this JSON structure, no markdown:
-{
-  "headline": "<Action-oriented title, 5 words max>",
-  "whyItWorks": "<1 sentence: the psychology behind this intervention>",
-  "steps": [
-    {"timeMinutes": <number>, "action": "<specific instruction>", "tip": "<optional guidance or null>"},
-    {"timeMinutes": <number>, "action": "<specific instruction>", "tip": null}
-  ],
-  "reflectionPrompt": "<Question to check in after intervention>"
-}
-`;
+Please structure your response with:
+- A headline (action-oriented, 5 words max)
+- Why it works (1 sentence about the psychology)
+- Steps with time estimates and specific actions
+- A reflection question
+
+Feel free to be creative with the steps and make them genuinely helpful. You can add encouraging notes or tips that seem appropriate for someone experiencing ${stuckType}.`;
 }
 
 /**
@@ -171,15 +172,11 @@ Each intervention should:
 - Work differently (e.g., one body-based, one cognitive, one environmental)
 - Be specific to ${stuckType}
 
-Return as JSON array:
-[
-  {
-    "headline": "<title>",
-    "whyItWorks": "<psychology>",
-    "steps": [...],
-    "reflectionPrompt": "<question>"
-  }
-]
-`;
-}
+For each option, please include:
+- A headline/title
+- Why it works (the psychology behind it)
+- 3-4 specific steps with time estimates
+- A reflection prompt
 
+Feel free to be creative and make these genuinely helpful. You can vary the approaches - some might be more reflective, others more action-oriented, etc. Present them as distinct options the student can choose from.`;
+}

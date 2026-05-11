@@ -11,7 +11,7 @@ import type {
   StudentProfile,
 } from "@/model/new/types";
 
-import { AppTab, STORAGE_KEY, MAX_HISTORY, OUTCOME_LABELS } from "./constants";
+import { AppTab, OUTCOME_LABELS } from "./constants";
 import {
   asCompleteAnswers,
   requestAssessment,

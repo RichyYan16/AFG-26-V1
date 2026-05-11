@@ -1,9 +1,17 @@
 /**
  * Logistic Regression Model for Stuck Type Classification
  * Takes embedding vectors and outputs categorical stuck type
+ * 
+ * Logistic regression model was trained by the authors in another environment (Google colab) and made using python. Weights were then stored in a .json file and loaded here for model rebuilding.
+ * 
+ * Code file generated using Claude Haiku 4.5 based on the following prompt:
+ * "Implement a logistic regression classifier in TypeScript that takes embedding vectors as input and outputs a probability distribution over 6 stuck types. The model should load pre-trained weights from a JSON file and apply the logistic regression formula to compute predictions. Include error handling for loading weights and ensure the model can handle cases where the embedding dimension does not match the expected input size by resizing or padding as necessary."
+ * 
  */
 
 import * as tf from "@tensorflow/tfjs";
+import { readFileSync } from "fs";
+import { join } from "path";
 import type { StuckType } from "./types";
 import { EMBEDDING_MODEL_CONFIG } from "./weights";
 
@@ -81,15 +89,13 @@ async function initializeModelWeights() {
     // Load weights from JSON file
     let data: LogisticWeightsFile;
     
-    // Edge Runtime compatible: use fetch with GitHub fallback
+    // Node.js runtime: use fs to read local file
     try {
-      const response = await fetch("/logisticRegressionWeights.json");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch weights: ${response.status} ${response.statusText}`);
-      }
-      data = (await response.json()) as LogisticWeightsFile;
-    } catch (fetchError) {
-      console.warn("Failed to fetch local weights, trying GitHub:", fetchError);
+      const weightsPath = join(process.cwd(), 'public', 'logisticRegressionWeights.json');
+      const fileContent = readFileSync(weightsPath, 'utf-8');
+      data = JSON.parse(fileContent) as LogisticWeightsFile;
+    } catch (fileError) {
+      console.warn("Failed to read local weights file, trying GitHub:", fileError);
       try {
         const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
         if (!response.ok) {
@@ -139,12 +145,10 @@ async function initializeModelWeights() {
     console.error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
     console.error(`   Initializing with random weights as fallback\n`);
     const inputDim = EMBEDDING_MODEL_CONFIG.dimension;
-    // Fallback: Use structured weights to ensure distinct predictions
-    const fallbackData = getFallbackWeights();
-    const weightTensor = tf.tensor2d(fallbackData.weights, [inputDim, 6]);
+    // Fallback: Initialize with small random weights
     MODEL_WEIGHTS = {
-      weights: weightTensor,
-      biases: tf.tensor1d(fallbackData.biases),
+      weights: tf.randomUniform([inputDim, 6], -0.1, 0.1),
+      biases: tf.zeros([6]),
       inputDim,
     };
   }

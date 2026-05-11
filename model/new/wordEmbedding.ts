@@ -40,28 +40,79 @@ let anchorEmbeddingCache: Record<StuckType, number[][]> | null = null;
  */
 async function loadModel() {
   if (!modelCache) {
-    console.log(`Loading Sentence-BERT model: ${SBERT_MODEL_ID}...`);
+    console.log("\n" + "=".repeat(60));
+    console.log(" EMBEDDING MODEL LOADING STARTED");
+    console.log("=".repeat(60));
+    console.log(` Model ID: ${SBERT_MODEL_ID}`);
+    console.log(` Allow remote models: ${SBERT_ALLOW_REMOTE_MODELS}`);
+    console.log(` Local model path: ${SBERT_LOCAL_MODEL_PATH || 'Not specified'}`);
+    console.log(` Transformers.js version: ${typeof pipeline !== 'undefined' ? 'loaded' : 'not loaded'}`);
+    
     try {
+      console.log(`\n🔄 Loading pipeline with model: ${SBERT_MODEL_ID}...`);
+      const startTime = Date.now();
+      
       const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
+      
+      const loadTime = Date.now() - startTime;
+      console.log(`✅ Pipeline loaded in ${loadTime}ms`);
       
       // Safety check: ensure loaded model is valid
       if (!loadedModel) {
         throw new Error('Model loading returned null/undefined');
       }
       
+      console.log(`✅ Model object created successfully`);
+      console.log(`   Model type: ${typeof loadedModel}`);
+      console.log(`   Model constructor: ${loadedModel.constructor?.name || 'Unknown'}`);
+      
+      // Test the model with a simple input
+      console.log(`\n🧪 Testing model with sample input...`);
+      const testStartTime = Date.now();
+      
+      try {
+        const testResult = await loadedModel("test", {
+          pooling: "mean",
+          normalize: true,
+        });
+        
+        const testTime = Date.now() - testStartTime;
+        console.log(`✅ Model test successful in ${testTime}ms`);
+        console.log(`   Result type: ${typeof testResult}`);
+        console.log(`   Has data property: ${testResult?.data ? 'yes' : 'no'}`);
+        console.log(`   Data type: ${typeof testResult?.data}`);
+        console.log(`   Data length: ${testResult?.data?.length || 0}`);
+        console.log(`   Sample values: [${Array.from(testResult?.data || []).slice(0, 3).map(v => v.toFixed(3)).join(", ")}...]`);
+        
+      } catch (testError) {
+        console.error(`❌ Model test failed:`, testError instanceof Error ? testError.message : String(testError));
+        throw new Error(`Model test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+      }
+      
       modelCache = loadedModel as unknown as EmbeddingPipeline;
-      console.log(" Sentence-BERT model loaded successfully");
+      console.log("\n✅ Sentence-BERT model loaded and cached successfully");
+      console.log("=".repeat(60) + "\n");
+      
     } catch (error) {
-      console.error(
-        ` Failed to load Sentence-BERT model (allowRemoteModels=${SBERT_ALLOW_REMOTE_MODELS}):`,
-        error,
-      );
+      console.error("\n❌ Failed to load Sentence-BERT model:");
+      console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`   Allow remote models: ${SBERT_ALLOW_REMOTE_MODELS}`);
+      console.error(`   Model ID: ${SBERT_MODEL_ID}`);
+      
+      if (error instanceof Error && error.stack) {
+        console.error(`   Stack trace: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+      }
+      
+      console.log("=".repeat(60) + "\n");
       throw new Error(`Failed to load Sentence-BERT model: ${error instanceof Error ? error.message : String(error)}`);
     }
+  } else {
+    console.log("📦 Using cached embedding model");
   }
   
   // Safety check: ensure cached model is valid
   if (!modelCache) {
+    console.error("❌ Model cache is null/undefined after loading");
     throw new Error('Model cache is null/undefined after loading');
   }
   
@@ -72,14 +123,23 @@ async function loadAnchorEmbeddings(
   model: EmbeddingPipeline,
 ): Promise<Record<StuckType, number[][]>> {
   if (anchorEmbeddingCache) {
+    console.log("📦 Using cached anchor embeddings");
     return anchorEmbeddingCache;
   }
 
+  console.log("\n" + "=".repeat(60));
+  console.log(" ANCHOR EMBEDDINGS LOADING STARTED");
+  console.log("=".repeat(60));
+
   // Safety check: ensure model is valid
   if (!model) {
-    console.error(' Invalid model provided to loadAnchorEmbeddings');
+    console.error('❌ Invalid model provided to loadAnchorEmbeddings');
     throw new Error('Invalid model: model is null or undefined');
   }
+
+  console.log(`✅ Model validated for anchor processing`);
+  console.log(`   Model type: ${typeof model}`);
+  console.log(`   Model constructor: ${model.constructor?.name || 'Unknown'}`);
 
   const cache: Record<StuckType, number[][]> = {
     confusion: [],
@@ -90,38 +150,72 @@ async function loadAnchorEmbeddings(
     perfection_loop: [],
   };
 
+  console.log(`\n🔗 Processing ${Object.keys(STUCK_TYPE_ANCHORS).length} stuck types...`);
+  
+  let totalAnchors = 0;
+  let successfulAnchors = 0;
+  let failedAnchors = 0;
+
   for (const [stuckType, anchors] of Object.entries(
     STUCK_TYPE_ANCHORS,
   ) as [StuckType, string[]][]) {
+    console.log(`\n📝 Processing ${stuckType} (${anchors.length} anchors)...`);
+    totalAnchors += anchors.length;
+    
     for (const anchor of anchors) {
       try {
+        const anchorStartTime = Date.now();
+        
         const anchorResult = await model(anchor, {
           pooling: "mean",
           normalize: true,
         });
         
+        const anchorTime = Date.now() - anchorStartTime;
+        
         // Safety check: ensure anchorResult and anchorResult.data are valid
         if (!anchorResult || !anchorResult.data) {
-          console.error(` Invalid anchor result for "${anchor}":`, anchorResult);
+          console.error(`   ❌ Invalid anchor result for "${anchor.substring(0, 30)}...":`, anchorResult);
+          failedAnchors++;
           continue;
         }
         
         const embeddingVector = Array.from(anchorResult.data) as number[];
+        
+        // Validate embedding vector
+        if (!embeddingVector || embeddingVector.length === 0) {
+          console.error(`   ❌ Empty embedding vector for "${anchor.substring(0, 30)}..."`);
+          failedAnchors++;
+          continue;
+        }
+        
         cache[stuckType].push(embeddingVector);
-        console.log(`   ✓ Processed anchor for ${stuckType}: "${anchor.substring(0, 30)}..."`);
+        successfulAnchors++;
+        console.log(`   ✅ (${anchorTime}ms) "${anchor.substring(0, 40)}..." -> [${embeddingVector.length} dims]`);
+        
       } catch (error) {
-        console.error(` ✗ Failed to process anchor "${anchor}":`, error instanceof Error ? error.message : String(error));
+        console.error(`   ❌ Failed to process anchor "${anchor.substring(0, 30)}...":`, error instanceof Error ? error.message : String(error));
+        failedAnchors++;
         // Continue with other anchors
       }
     }
+    
+    console.log(`   📊 ${stuckType}: ${cache[stuckType].length}/${anchors.length} anchors successful`);
   }
 
   anchorEmbeddingCache = cache;
   
+  // Summary statistics
+  console.log(`\n📈 ANCHOR EMBEDDINGS SUMMARY:`);
+  console.log(`   Total anchors processed: ${totalAnchors}`);
+  console.log(`   Successful: ${successfulAnchors} (${((successfulAnchors/totalAnchors)*100).toFixed(1)}%)`);
+  console.log(`   Failed: ${failedAnchors} (${((failedAnchors/totalAnchors)*100).toFixed(1)}%)`);
+  
   // Debug: Report anchor embedding counts
-  console.log(" Anchor embeddings loaded:");
+  console.log(`\n📊 Final anchor embedding counts:`);
   Object.entries(cache).forEach(([type, embeddings]) => {
-    console.log(`   ${type}: ${embeddings.length} anchors`);
+    const status = embeddings.length > 0 ? '✅' : '❌';
+    console.log(`   ${status} ${type}: ${embeddings.length} anchors`);
   });
   
   // Check if all types have anchors loaded
@@ -130,13 +224,13 @@ async function loadAnchorEmbeddings(
     .map(([type]) => type);
     
   if (typesWithEmptyAnchors.length > 0) {
-    console.warn(` ⚠️  Types with no anchor embeddings: ${typesWithEmptyAnchors.join(', ')}`);
-    console.warn("   This may cause identical scores for all types");
+    console.log(`\n⚠️  TYPES WITH NO ANCHOR EMBEDDINGS: ${typesWithEmptyAnchors.join(', ')}`);
+    console.log(`   This may cause identical scores for all types`);
     
     // Create fallback embeddings for types that failed
     const stuckTypeArray: StuckType[] = ["confusion", "ambiguity", "fear", "overwhelm", "exhaustion", "perfection_loop"];
     typesWithEmptyAnchors.forEach(type => {
-      console.log(`   Creating fallback embeddings for ${type}`);
+      console.log(`   🔧 Creating fallback embeddings for ${type}`);
       // Create simple distinct vectors for each type
       const fallbackVector = new Array(384).fill(0);
       const typeIndex = stuckTypeArray.indexOf(type as StuckType);
@@ -145,12 +239,16 @@ async function loadAnchorEmbeddings(
       cache[type as StuckType] = [fallbackVector];
     });
     
-    console.log(" Fallback embeddings created. Updated counts:");
+    console.log(`\n🔧 FALLBACK EMBEDDINGS CREATED. Updated counts:`);
     Object.entries(cache).forEach(([type, embeddings]) => {
-      console.log(`   ${type}: ${embeddings.length} anchors`);
+      const status = embeddings.length > 0 ? '✅' : '❌';
+      console.log(`   ${status} ${type}: ${embeddings.length} anchors`);
     });
+  } else {
+    console.log(`\n✅ ALL TYPES HAVE ANCHOR EMBEDDINGS - No fallbacks needed`);
   }
   
+  console.log("=".repeat(60) + "\n");
   return anchorEmbeddingCache;
 }
 
@@ -223,25 +321,39 @@ const STUCK_TYPE_ANCHORS: Record<StuckType, string[]> = {
 export async function computeEmbeddingVector(
   answers: DiagnosticAnswers,
 ): Promise<number[]> {
+  console.log("\n" + "=".repeat(60));
+  console.log(" COMPUTING EMBEDDING VECTOR");
+  console.log("=".repeat(60));
+  
   try {
+    console.log("🔄 Loading model...");
     const model = await loadModel();
+    console.log("✅ Model loaded successfully");
 
     // Safety check: ensure answers is a valid object
     if (!answers || typeof answers !== 'object') {
-      console.error(' Invalid answers provided to computeEmbeddingVector:', answers);
+      console.error('❌ Invalid answers provided to computeEmbeddingVector:', answers);
       throw new Error('Invalid answers: must be a valid object');
     }
+
+    console.log(`✅ Answers validated: ${Object.keys(answers).length} fields`);
 
     // Combine all answers into single text
     const studentText = Object.values(answers)
       .filter(Boolean)
       .join(" ");
 
+    console.log(`📝 Combined text length: ${studentText.length} characters`);
+    console.log(`   Sample text: "${studentText.substring(0, 100)}${studentText.length > 100 ? '...' : ''}"`);
+
     // Ensure we have some text to embed
     if (!studentText.trim()) {
-      console.error(' No valid text found in answers for embedding');
+      console.error('❌ No valid text found in answers for embedding');
       throw new Error('No valid text found in answers for embedding');
     }
+
+    console.log("🔄 Computing embedding...");
+    const embedStartTime = Date.now();
 
     // Embed student response using Sentence-BERT
     const result = await model(studentText, {
@@ -249,9 +361,12 @@ export async function computeEmbeddingVector(
       normalize: true,
     });
 
+    const embedTime = Date.now() - embedStartTime;
+    console.log(`✅ Embedding computed in ${embedTime}ms`);
+
     // Safety check: ensure result and result.data are valid
     if (!result || !result.data) {
-      console.error(' Invalid model result:', result);
+      console.error('❌ Invalid model result:', result);
       throw new Error('Invalid model result: result or result.data is null/undefined');
     }
 
@@ -260,15 +375,26 @@ export async function computeEmbeddingVector(
 
     // Safety check: ensure we got a valid vector
     if (!studentVec || studentVec.length === 0) {
-      console.error(' Invalid embedding vector:', studentVec);
+      console.error('❌ Invalid embedding vector:', studentVec);
       throw new Error('Invalid embedding vector: empty or null');
     }
 
-    console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
+    console.log(`✅ Embedding vector computed successfully:`);
+    console.log(`   Dimensions: ${studentVec.length}`);
+    console.log(`   Min value: ${Math.min(...studentVec).toFixed(4)}`);
+    console.log(`   Max value: ${Math.max(...studentVec).toFixed(4)}`);
+    console.log(`   Mean value: ${(studentVec.reduce((a, b) => a + b, 0) / studentVec.length).toFixed(4)}`);
     console.log(`   Sample values: [${studentVec.slice(0, 5).map(v => v.toFixed(3)).join(", ")}...]`);
+    
+    console.log("=".repeat(60) + "\n");
     return studentVec;
   } catch (e) {
-    console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
+    console.error("\n❌ EMBEDDING COMPUTATION FAILED:");
+    console.error(`   Error: ${e instanceof Error ? e.message : String(e)}`);
+    if (e instanceof Error && e.stack) {
+      console.error(`   Stack: ${e.stack.split('\n').slice(0, 3).join('\n')}`);
+    }
+    console.log("=".repeat(60) + "\n");
     throw e;
   }
 }

@@ -375,28 +375,28 @@ export async function getEmbeddingSimilarityBreakdown(
   });
   const studentVec = Array.from(result.data) as number[];
 
-  const breakdown: Record<
-    StuckType,
-    { anchors: string[]; similarities: number[] }
-  > = {
-    confusion: { anchors: [], similarities: [] },
-    ambiguity: { anchors: [], similarities: [] },
-    fear: { anchors: [], similarities: [] },
-    overwhelm: { anchors: [], similarities: [] },
-    exhaustion: { anchors: [], similarities: [] },
-    perfection_loop: { anchors: [], similarities: [] },
-  };
+const breakdown: Record<
+  StuckType,
+  { anchors: string[]; similarities: number[] }
+> = {
+  confusion: { anchors: [], similarities: [] },
+  ambiguity: { anchors: [], similarities: [] },
+  fear: { anchors: [], similarities: [] },
+  overwhelm: { anchors: [], similarities: [] },
+  exhaustion: { anchors: [], similarities: [] },
+  perfection_loop: { anchors: [], similarities: [] },
+};
 
-  for (const [stuckType, anchors] of Object.entries(
-    STUCK_TYPE_ANCHORS,
-  ) as [StuckType, string[]][]) {
-    breakdown[stuckType].anchors = anchors;
-    const anchorVectors = anchorEmbeddings[stuckType];
-    for (const anchorVec of anchorVectors) {
-      const similarity = cosineSimilarity(studentVec, anchorVec);
-      breakdown[stuckType].similarities.push(similarity);
-    }
+for (const [stuckType, anchors] of Object.entries(
+  STUCK_TYPE_ANCHORS,
+) as [StuckType, string[]][]) {
+  breakdown[stuckType].anchors = anchors;
+  const anchorVectors = anchorEmbeddings[stuckType];
+  for (const anchorVec of anchorVectors) {
+    const similarity = cosineSimilarity(studentVec, anchorVec);
+    breakdown[stuckType].similarities.push(similarity);
   }
+}
 
-  return breakdown;
+return breakdown;
 }

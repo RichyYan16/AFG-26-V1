@@ -41,6 +41,7 @@ export {
   computeEmbeddingScores,
   applyBehavioralSignalBoosts,
   getEmbeddingSimilarityBreakdown,
+  debugEmbeddingModel,
 } from "./wordEmbedding";
 
 // ============================================

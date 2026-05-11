@@ -12,8 +12,6 @@
 import * as tf from "@tensorflow/tfjs";
 import type { StuckType } from "./types";
 import { EMBEDDING_MODEL_CONFIG } from "./weights";
-import { readFileSync } from "fs";
-import { join } from "path";
 
 // Stuck types in order (for one-hot encoding)
 const STUCK_TYPES: StuckType[] = [
@@ -89,23 +87,16 @@ async function initializeModelWeights() {
     // Load weights from JSON file
     let data: LogisticWeightsFile;
     
-    // Node.js runtime: use fs to read local file
+    // Edge Runtime: use fetch to get weights from GitHub
     try {
-      const weightsPath = join(process.cwd(), 'public', 'logisticRegressionWeights.json');
-      const fileContent = readFileSync(weightsPath, 'utf-8');
-      data = JSON.parse(fileContent) as LogisticWeightsFile;
-    } catch (fileError) {
-      console.warn("Failed to read local weights file, trying GitHub:", fileError);
-      try {
-        const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
-        if (!response.ok) {
-          throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
-        }
-        data = (await response.json()) as LogisticWeightsFile;
-      } catch (githubError) {
-        console.warn("Failed to fetch from GitHub, using hardcoded fallback:", githubError);
-        data = getFallbackWeights();
+      const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
       }
+      data = (await response.json()) as LogisticWeightsFile;
+    } catch (githubError) {
+      console.warn("Failed to fetch from GitHub, using hardcoded fallback:", githubError);
+      data = getFallbackWeights();
     }
 
     // Create tensors from loaded data.

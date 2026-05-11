@@ -125,27 +125,105 @@ export async function diagnoseWithEmbeddingsOnly(
   answers: DiagnosticAnswers,
   context?: DiagnosticContext,
 ): Promise<DiagnosisResult> {
-  let scores = await computeEmbeddingScores(answers);
+  console.log("\n" + "=".repeat(80));
+  console.log("🔍 DIAGNOSE WITH EMBEDDINGS ONLY - STARTED");
+  console.log("=".repeat(80));
+  
+  // Validate input
+  console.log("📋 Input validation:");
+  console.log(`   Answers provided: ${answers ? 'Yes' : 'No'}`);
+  console.log(`   Answer keys: ${answers ? Object.keys(answers).join(', ') : 'None'}`);
+  console.log(`   Context provided: ${context ? 'Yes' : 'No'}`);
+  console.log(`   Behavioral signals: ${context?.behavioralSignals ? 'Yes' : 'No'}`);
+  
+  try {
+    console.log("\n🔄 Step 1: Computing embedding scores...");
+    const scoresStartTime = performance.now();
+    
+    let scores = await computeEmbeddingScores(answers);
+    
+    const scoresTime = performance.now() - scoresStartTime;
+    console.log(`✅ Embedding scores computed in ${scoresTime.toFixed(2)}ms`);
+    
+    console.log("\n📊 Raw embedding scores:");
+    Object.entries(scores).forEach(([type, score]) => {
+      console.log(`   ${type}: ${score.toFixed(6)}`);
+    });
 
-  if (context?.behavioralSignals) {
-    scores = applyBehavioralSignalBoosts(scores, context.behavioralSignals);
-  }
+    if (context?.behavioralSignals) {
+      console.log("\n🔄 Step 2: Applying behavioral signal boosts...");
+      const boostStartTime = performance.now();
+      
+      scores = applyBehavioralSignalBoosts(scores, context.behavioralSignals);
+      
+      const boostTime = performance.now() - boostStartTime;
+      console.log(`✅ Behavioral boosts applied in ${boostTime.toFixed(2)}ms`);
+      
+      console.log("\n📊 Boosted embedding scores:");
+      Object.entries(scores).forEach(([type, score]) => {
+        console.log(`   ${type}: ${score.toFixed(6)}`);
+      });
+    }
 
-  const rankedTypes = Object.entries(scores)
-    .map(([type, score]) => ({
-      type: type as StuckType,
-      score: score * 10,
-      normalized: score,
-      reasons: ["Embedding-based diagnosis (no Gemini refinement)"],
-    }))
-    .sort((a, b) => b.score - a.score);
+    console.log("\n🔄 Step 3: Ranking and formatting results...");
+    const rankingStartTime = performance.now();
+    
+    const rankedTypes = Object.entries(scores)
+      .map(([type, score]) => ({
+        type: type as StuckType,
+        score: score * 10,
+        normalized: score,
+        reasons: ["Embedding-based diagnosis (no Gemini refinement)"],
+      }))
+      .sort((a, b) => b.score - a.score);
 
-  return {
-    primaryType: rankedTypes[0].type,
-    confidence: rankedTypes[0].normalized,
-    rankedTypes,
-    summary: `Based on your responses, you seem primarily stuck with ${rankedTypes[0].type}. 
+    const rankingTime = performance.now() - rankingStartTime;
+    console.log(`✅ Results ranked in ${rankingTime.toFixed(2)}ms`);
+    
+    console.log("\n📈 FINAL RESULTS:");
+    console.log(`   Primary type: ${rankedTypes[0].type}`);
+    console.log(`   Confidence: ${(rankedTypes[0].normalized * 100).toFixed(1)}%`);
+    console.log(`   Number of types: ${rankedTypes.length}`);
+    
+    console.log("\n🏆 RANKED TYPES:");
+    rankedTypes.forEach((rank, i) => {
+      console.log(`   ${i + 1}. ${rank.type}: ${(rank.normalized * 100).toFixed(1)}%`);
+    });
+    
+    const totalTime = performance.now();
+    console.log(`\n⏱️  Total diagnosis time: ${(totalTime - scoresStartTime).toFixed(2)}ms`);
+    console.log("=".repeat(80) + "\n");
+
+    return {
+      primaryType: rankedTypes[0].type,
+      confidence: rankedTypes[0].normalized,
+      rankedTypes,
+      summary: `Based on your responses, you seem primarily stuck with ${rankedTypes[0].type}. 
 Tell us more so we can personalize next steps.`,
-    embeddingSimilarities: scores,
-  };
+      embeddingSimilarities: scores,
+    };
+  } catch (error) {
+    console.error("\n❌ DIAGNOSIS FAILED:");
+    console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+    if (error instanceof Error && error.stack) {
+      console.error(`   Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+    }
+    console.log("=".repeat(80) + "\n");
+    
+    // Return fallback result
+    const fallbackResult = {
+      primaryType: "confusion" as StuckType,
+      confidence: 0.5,
+      rankedTypes: [
+        { type: "confusion" as StuckType, score: 5, normalized: 0.5, reasons: ["Fallback diagnosis"] },
+        { type: "ambiguity" as StuckType, score: 3, normalized: 0.3, reasons: ["Fallback diagnosis"] },
+        { type: "fear" as StuckType, score: 2, normalized: 0.2, reasons: ["Fallback diagnosis"] },
+      ],
+      summary: "Diagnosis failed. Please try again.",
+      embeddingSimilarities: { confusion: 0.5, ambiguity: 0.3, fear: 0.2, overwhelm: 0.1, exhaustion: 0.05, perfection_loop: 0.01 },
+    };
+    
+    console.log("🔄 Returning fallback result");
+    return fallbackResult;
+  }
 }

@@ -11,25 +11,19 @@ import { STUCK_TYPE_DESCRIPTIONS } from "../constants";
 
 // Helper function to clean and parse JSON responses from AI models
 function cleanAndParseJSON(response: string): any {
-  console.log("🔍 Attempting to parse JSON response:", response.substring(0, 200) + "...");
-  
   try {
     // First try direct parsing
     const result = JSON.parse(response);
-    console.log("✅ Direct JSON parsing successful");
     return result;
   } catch (error) {
-    console.warn("⚠️ Direct JSON parsing failed, attempting extraction:", error);
-    
     // Try to extract JSON from the response (handle markdown code blocks)
     let jsonMatch = response.match(/```json\s*([\s\S]*?)```/);
     if (jsonMatch) {
       try {
         const result = JSON.parse(jsonMatch[1]);
-        console.log("✅ Successfully parsed JSON from markdown code block");
         return result;
       } catch (innerError) {
-        console.warn("⚠️ Failed to parse JSON from markdown code block:", innerError);
+        // Continue to next method
       }
     }
     
@@ -38,10 +32,9 @@ function cleanAndParseJSON(response: string): any {
     if (jsonMatch) {
       try {
         const result = JSON.parse(jsonMatch[0]);
-        console.log("✅ Successfully parsed extracted JSON");
         return result;
       } catch (innerError) {
-        console.warn("⚠️ Failed to parse extracted JSON:", innerError);
+        // Continue to next method
       }
     }
     

@@ -40,49 +40,120 @@ let anchorEmbeddingCache: Record<StuckType, number[][]> | null = null;
  */
 async function loadModel() {
   if (!modelCache) {
-    console.log("\n" + "=".repeat(60));
-    console.log(" EMBEDDING MODEL LOADING STARTED");
-    console.log("=".repeat(60));
-    console.log(` Model ID: ${SBERT_MODEL_ID}`);
-    console.log(` Allow remote models: ${SBERT_ALLOW_REMOTE_MODELS}`);
-    console.log(` Local model path: ${SBERT_LOCAL_MODEL_PATH || 'Not specified'}`);
-    console.log(` Transformers.js version: ${typeof pipeline !== 'undefined' ? 'loaded' : 'not loaded'}`);
+    console.log("\n" + "=".repeat(70));
+    console.log("🚀 EMBEDDING MODEL LOADING STARTED");
+    console.log("=".repeat(70));
+    
+    // System and environment info
+    const startTime = performance.now();
+    console.log(`⏰ Start time: ${new Date().toISOString()}`);
+    console.log(`🌐 Browser: ${typeof window !== 'undefined' ? window.navigator?.userAgent || 'Unknown' : 'Node.js'}`);
+    console.log(`💾 Memory usage: ${typeof performance !== 'undefined' && (performance as any).memory ? 
+      `Used: ${((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(2)}MB, ` +
+      `Total: ${((performance as any).memory.totalJSHeapSize / 1024 / 1024).toFixed(2)}MB` : 
+      'Not available'}`);
+    
+    console.log(`\n📋 MODEL CONFIGURATION:`);
+    console.log(`   Model ID: ${SBERT_MODEL_ID}`);
+    console.log(`   Allow remote models: ${SBERT_ALLOW_REMOTE_MODELS}`);
+    console.log(`   Local model path: ${SBERT_LOCAL_MODEL_PATH || 'Not specified'}`);
+    console.log(`   Transformers.js version: ${typeof pipeline !== 'undefined' ? 'loaded' : 'not loaded'}`);
     
     try {
-      console.log(`\n🔄 Loading pipeline with model: ${SBERT_MODEL_ID}...`);
-      const startTime = Date.now();
+      console.log(`\n🔄 INITIALIZING PIPELINE...`);
+      const pipelineStartTime = performance.now();
       
       const loadedModel = await pipeline("feature-extraction", SBERT_MODEL_ID);
       
-      const loadTime = Date.now() - startTime;
-      console.log(`✅ Pipeline loaded in ${loadTime}ms`);
+      const pipelineTime = performance.now() - pipelineStartTime;
+      console.log(`✅ Pipeline initialized in ${pipelineTime.toFixed(2)}ms`);
       
       // Safety check: ensure loaded model is valid
       if (!loadedModel) {
         throw new Error('Model loading returned null/undefined');
       }
       
-      console.log(`✅ Model object created successfully`);
+      console.log(`\n📊 MODEL ANALYSIS:`);
       console.log(`   Model type: ${typeof loadedModel}`);
       console.log(`   Model constructor: ${loadedModel.constructor?.name || 'Unknown'}`);
       
+      // Analyze model properties and size
+      const modelProps = Object.getOwnPropertyNames(loadedModel);
+      console.log(`   Model properties: ${modelProps.length} found`);
+      
+      // Check for specific model components
+      if (loadedModel.model) {
+        console.log(`   ✅ Has model property`);
+        if (loadedModel.model.config) {
+          console.log(`   ✅ Has model config`);
+          const config = loadedModel.model.config;
+          console.log(`      - Model type: ${config.model_type || 'Unknown'}`);
+          console.log(`      - Hidden size: ${config.hidden_size || 'Unknown'}`);
+          console.log(`      - Num layers: ${config.num_hidden_layers || 'Unknown'}`);
+          console.log(`      - Max position embeddings: ${config.max_position_embeddings || 'Unknown'}`);
+        }
+      }
+      
+      // Memory usage after model loading
+      if (typeof performance !== 'undefined' && (performance as any).memory) {
+        const memoryAfter = (performance as any).memory.usedJSHeapSize;
+        console.log(`   💾 Memory after load: ${(memoryAfter / 1024 / 1024).toFixed(2)}MB`);
+      }
+      
       // Test the model with a simple input
-      console.log(`\n🧪 Testing model with sample input...`);
-      const testStartTime = Date.now();
+      console.log(`\n🧪 MODEL PERFORMANCE TEST:`);
+      const testStartTime = performance.now();
       
       try {
-        const testResult = await loadedModel("test", {
+        const testText = "This is a test sentence for performance evaluation.";
+        console.log(`   Test input: "${testText}"`);
+        
+        const testResult = await loadedModel(testText, {
           pooling: "mean",
           normalize: true,
         });
         
-        const testTime = Date.now() - testStartTime;
-        console.log(`✅ Model test successful in ${testTime}ms`);
+        const testTime = performance.now() - testStartTime;
+        console.log(`✅ Test completed in ${testTime.toFixed(2)}ms`);
         console.log(`   Result type: ${typeof testResult}`);
         console.log(`   Has data property: ${testResult?.data ? 'yes' : 'no'}`);
         console.log(`   Data type: ${typeof testResult?.data}`);
         console.log(`   Data length: ${testResult?.data?.length || 0}`);
-        console.log(`   Sample values: [${Array.from(testResult?.data || []).slice(0, 3).map(v => v.toFixed(3)).join(", ")}...]`);
+        
+        if (testResult?.data) {
+          const data = Array.from(testResult.data);
+          console.log(`   Min value: ${Math.min(...data).toFixed(6)}`);
+          console.log(`   Max value: ${Math.max(...data).toFixed(6)}`);
+          console.log(`   Mean value: ${(data.reduce((a, b) => a + b, 0) / data.length).toFixed(6)}`);
+          console.log(`   Sample values: [${data.slice(0, 5).map(v => v.toFixed(4)).join(", ")}...]`);
+          
+          // Check for all zeros (potential problem)
+          const allZeros = data.every(v => Math.abs(v) < 1e-10);
+          if (allZeros) {
+            console.warn(`   ⚠️  WARNING: All values are near zero!`);
+          }
+          
+          // Check for identical values (potential problem)
+          const uniqueValues = new Set(data.map(v => v.toFixed(4)));
+          if (uniqueValues.size < 10) {
+            console.warn(`   ⚠️  WARNING: Only ${uniqueValues.size} unique values found!`);
+          }
+        }
+        
+        // Performance metrics
+        const totalTime = performance.now() - startTime;
+        console.log(`\n📈 PERFORMANCE SUMMARY:`);
+        console.log(`   Total load time: ${totalTime.toFixed(2)}ms`);
+        console.log(`   Pipeline init: ${pipelineTime.toFixed(2)}ms (${(pipelineTime/totalTime*100).toFixed(1)}%)`);
+        console.log(`   Test inference: ${testTime.toFixed(2)}ms`);
+        console.log(`   Inference speed: ${(testTime/1).toFixed(2)}ms per sentence`);
+        
+        // Memory impact
+        if (typeof performance !== 'undefined' && (performance as any).memory) {
+          const finalMemory = (performance as any).memory.usedJSHeapSize;
+          console.log(`   Final memory: ${(finalMemory / 1024 / 1024).toFixed(2)}MB`);
+          console.log(`   Memory increase: ${((finalMemory - ((performance as any).memory.usedJSHeapSize)) / 1024 / 1024).toFixed(2)}MB`);
+        }
         
       } catch (testError) {
         console.error(`❌ Model test failed:`, testError instanceof Error ? testError.message : String(testError));
@@ -90,11 +161,13 @@ async function loadModel() {
       }
       
       modelCache = loadedModel as unknown as EmbeddingPipeline;
-      console.log("\n✅ Sentence-BERT model loaded and cached successfully");
-      console.log("=".repeat(60) + "\n");
+      console.log("\n✅ MODEL SUCCESSFULLY LOADED AND CACHED");
+      console.log("=".repeat(70) + "\n");
       
     } catch (error) {
-      console.error("\n❌ Failed to load Sentence-BERT model:");
+      const totalTime = performance.now() - startTime;
+      console.error("\n❌ MODEL LOADING FAILED:");
+      console.error(`   Total time attempted: ${totalTime.toFixed(2)}ms`);
       console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
       console.error(`   Allow remote models: ${SBERT_ALLOW_REMOTE_MODELS}`);
       console.error(`   Model ID: ${SBERT_MODEL_ID}`);
@@ -103,11 +176,34 @@ async function loadModel() {
         console.error(`   Stack trace: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
       }
       
-      console.log("=".repeat(60) + "\n");
+      // Additional debugging for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          console.error(`   🌐 Network error - check internet connection and model availability`);
+        }
+        if (error.message.includes('memory') || error.message.includes('out of memory')) {
+          console.error(`   💾 Memory error - model may be too large for available memory`);
+        }
+        if (error.message.includes('CORS')) {
+          console.error(`   🔒 CORS error - check server configuration`);
+        }
+      }
+      
+      console.log("=".repeat(70) + "\n");
       throw new Error(`Failed to load Sentence-BERT model: ${error instanceof Error ? error.message : String(error)}`);
     }
   } else {
     console.log("📦 Using cached embedding model");
+    
+    // Quick performance check for cached model
+    const cacheTestStart = performance.now();
+    try {
+      const quickTest = await modelCache("quick test", { pooling: "mean", normalize: true });
+      const cacheTestTime = performance.now() - cacheTestStart;
+      console.log(`   ⚡ Cached model inference: ${cacheTestTime.toFixed(2)}ms`);
+    } catch (e) {
+      console.warn(`   ⚠️  Cached model test failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   
   // Safety check: ensure cached model is valid
@@ -155,6 +251,8 @@ async function loadAnchorEmbeddings(
   let totalAnchors = 0;
   let successfulAnchors = 0;
   let failedAnchors = 0;
+  const anchorProcessingTimes: number[] = [];
+  const anchorStartTime = performance.now();
 
   for (const [stuckType, anchors] of Object.entries(
     STUCK_TYPE_ANCHORS,
@@ -162,20 +260,26 @@ async function loadAnchorEmbeddings(
     console.log(`\n📝 Processing ${stuckType} (${anchors.length} anchors)...`);
     totalAnchors += anchors.length;
     
+    let typeSuccessCount = 0;
+    let typeFailCount = 0;
+    const typeStartTime = performance.now();
+    
     for (const anchor of anchors) {
       try {
-        const anchorStartTime = Date.now();
+        const singleAnchorStart = performance.now();
         
         const anchorResult = await model(anchor, {
           pooling: "mean",
           normalize: true,
         });
         
-        const anchorTime = Date.now() - anchorStartTime;
+        const singleAnchorTime = performance.now() - singleAnchorStart;
+        anchorProcessingTimes.push(singleAnchorTime);
         
         // Safety check: ensure anchorResult and anchorResult.data are valid
         if (!anchorResult || !anchorResult.data) {
           console.error(`   ❌ Invalid anchor result for "${anchor.substring(0, 30)}...":`, anchorResult);
+          typeFailCount++;
           failedAnchors++;
           continue;
         }
@@ -185,23 +289,45 @@ async function loadAnchorEmbeddings(
         // Validate embedding vector
         if (!embeddingVector || embeddingVector.length === 0) {
           console.error(`   ❌ Empty embedding vector for "${anchor.substring(0, 30)}..."`);
+          typeFailCount++;
           failedAnchors++;
           continue;
         }
         
+        // Additional validation for embedding quality
+        const allZeros = embeddingVector.every(v => Math.abs(v) < 1e-10);
+        if (allZeros) {
+          console.warn(`   ⚠️  Anchor "${anchor.substring(0, 30)}..." has all-zero embedding!`);
+        }
+        
+        const uniqueValues = new Set(embeddingVector.map(v => v.toFixed(4)));
+        if (uniqueValues.size < 10) {
+          console.warn(`   ⚠️  Anchor "${anchor.substring(0, 30)}..." has low diversity (${uniqueValues.size} unique values)!`);
+        }
+        
         cache[stuckType].push(embeddingVector);
         successfulAnchors++;
-        console.log(`   ✅ (${anchorTime}ms) "${anchor.substring(0, 40)}..." -> [${embeddingVector.length} dims]`);
+        typeSuccessCount++;
+        
+        console.log(`   ✅ (${singleAnchorTime.toFixed(1)}ms) "${anchor.substring(0, 40)}..." -> [${embeddingVector.length} dims]`);
         
       } catch (error) {
         console.error(`   ❌ Failed to process anchor "${anchor.substring(0, 30)}...":`, error instanceof Error ? error.message : String(error));
+        typeFailCount++;
         failedAnchors++;
         // Continue with other anchors
       }
     }
     
-    console.log(`   📊 ${stuckType}: ${cache[stuckType].length}/${anchors.length} anchors successful`);
+    const typeTime = performance.now() - typeStartTime;
+    console.log(`   📊 ${stuckType}: ${typeSuccessCount}/${anchors.length} anchors successful (${typeTime.toFixed(1)}ms total)`);
+    
+    if (typeFailCount > 0) {
+      console.warn(`   ⚠️  ${stuckType} had ${typeFailCount} failed anchors`);
+    }
   }
+  
+  const totalAnchorTime = performance.now() - anchorStartTime;
 
   anchorEmbeddingCache = cache;
   
@@ -210,6 +336,32 @@ async function loadAnchorEmbeddings(
   console.log(`   Total anchors processed: ${totalAnchors}`);
   console.log(`   Successful: ${successfulAnchors} (${((successfulAnchors/totalAnchors)*100).toFixed(1)}%)`);
   console.log(`   Failed: ${failedAnchors} (${((failedAnchors/totalAnchors)*100).toFixed(1)}%)`);
+  
+  // Performance metrics
+  if (anchorProcessingTimes.length > 0) {
+    const avgTime = anchorProcessingTimes.reduce((a, b) => a + b, 0) / anchorProcessingTimes.length;
+    const minTime = Math.min(...anchorProcessingTimes);
+    const maxTime = Math.max(...anchorProcessingTimes);
+    const medianTime = anchorProcessingTimes.sort((a, b) => a - b)[Math.floor(anchorProcessingTimes.length / 2)];
+    
+    console.log(`\n⏱️  PERFORMANCE METRICS:`);
+    console.log(`   Total processing time: ${totalAnchorTime.toFixed(1)}ms`);
+    console.log(`   Average per anchor: ${avgTime.toFixed(1)}ms`);
+    console.log(`   Fastest anchor: ${minTime.toFixed(1)}ms`);
+    console.log(`   Slowest anchor: ${maxTime.toFixed(1)}ms`);
+    console.log(`   Median time: ${medianTime.toFixed(1)}ms`);
+    console.log(`   Throughput: ${(successfulAnchors / (totalAnchorTime / 1000)).toFixed(1)} anchors/sec`);
+    
+    // Memory usage
+    if (typeof performance !== 'undefined' && (performance as any).memory) {
+      const memoryUsage = (performance as any).memory.usedJSHeapSize;
+      console.log(`   Memory after anchors: ${(memoryUsage / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Estimate embedding storage size
+      const totalEmbeddingSize = successfulAnchors * 384 * 8; // 384 dims * 8 bytes per float64
+      console.log(`   Estimated embedding storage: ${(totalEmbeddingSize / 1024 / 1024).toFixed(2)}MB`);
+    }
+  }
   
   // Debug: Report anchor embedding counts
   console.log(`\n📊 Final anchor embedding counts:`);

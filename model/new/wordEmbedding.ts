@@ -8,7 +8,7 @@ import { env, pipeline } from "@xenova/transformers";
 import type { DiagnosticAnswers, StuckType } from "./types";
 import { EMBEDDING_WEIGHTS } from "./weights";
 
-const SBERT_MODEL_ID = process.env.SBERT_MODEL_ID || "Xenova/all-MiniLM-L6-v2";
+const SBERT_MODEL_ID = process.env.SBERT_MODEL_ID || "Xenova/paraphrase-MiniLM-L3-v2";
 const SBERT_ALLOW_REMOTE_MODELS =
   process.env.SBERT_ALLOW_REMOTE_MODELS !== "false";
 const SBERT_LOCAL_MODEL_PATH = process.env.SBERT_LOCAL_MODEL_PATH;

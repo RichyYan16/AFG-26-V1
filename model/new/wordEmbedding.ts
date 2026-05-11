@@ -697,40 +697,120 @@ export function applyBehavioralSignalBoosts(
 export async function getEmbeddingSimilarityBreakdown(
   answers: DiagnosticAnswers,
 ): Promise<Record<StuckType, { anchors: string[]; similarities: number[] }>> {
-  const model = await loadModel();
-  const anchorEmbeddings = await loadAnchorEmbeddings(model);
-  const studentText = Object.values(answers)
-    .filter(Boolean)
-    .join(" ");
+const model = await loadModel();
+const anchorEmbeddings = await loadAnchorEmbeddings(model);
+const studentText = Object.values(answers)
+  .filter(Boolean)
+  .join(" ");
 
-  const studentResult = await model(studentText, {
-    pooling: "mean",
-    normalize: true,
-  });
-  const studentVec = Array.from(studentResult.data) as number[];
+const studentResult = await model(studentText, {
+  pooling: "mean",
+  normalize: true,
+});
+const studentVec = Array.from(studentResult.data) as number[];
 
-  const breakdown: Record<
-    StuckType,
-    { anchors: string[]; similarities: number[] }
-  > = {
-    confusion: { anchors: [], similarities: [] },
-    ambiguity: { anchors: [], similarities: [] },
-    fear: { anchors: [], similarities: [] },
-    overwhelm: { anchors: [], similarities: [] },
-    exhaustion: { anchors: [], similarities: [] },
-    perfection_loop: { anchors: [], similarities: [] },
-  };
+const breakdown: Record<
+  StuckType,
+  { anchors: string[]; similarities: number[] }
+> = {
+  confusion: { anchors: [], similarities: [] },
+  ambiguity: { anchors: [], similarities: [] },
+  fear: { anchors: [], similarities: [] },
+  overwhelm: { anchors: [], similarities: [] },
+  exhaustion: { anchors: [], similarities: [] },
+  perfection_loop: { anchors: [], similarities: [] },
+};
 
-  for (const [stuckType, anchors] of Object.entries(
-    STUCK_TYPE_ANCHORS,
-  ) as [StuckType, string[]][]) {
-    breakdown[stuckType].anchors = anchors;
-    const anchorVectors = anchorEmbeddings[stuckType];
-    for (const anchorVec of anchorVectors) {
-      const similarity = cosineSimilarity(studentVec, anchorVec);
-      breakdown[stuckType].similarities.push(similarity);
-    }
+for (const [stuckType, anchors] of Object.entries(
+  STUCK_TYPE_ANCHORS,
+) as [StuckType, string[]][]) {
+  breakdown[stuckType].anchors = anchors;
+  const anchorVectors = anchorEmbeddings[stuckType];
+  for (const anchorVec of anchorVectors) {
+    const similarity = cosineSimilarity(studentVec, anchorVec);
+    breakdown[stuckType].similarities.push(similarity);
   }
+}
 
-  return breakdown;
+return breakdown;
+}
+
+/**
+ * Simple debug function to test embedding model from anywhere
+ * Call this from page.tsx to trigger debugging
+ */
+export async function debugEmbeddingModel() {
+console.log("\n" + "=".repeat(80));
+console.log("🧪 EMBEDDING MODEL DEBUG FUNCTION CALLED");
+console.log("=".repeat(80));
+console.log(`⏰ Debug called at: ${new Date().toISOString()}`);
+  
+try {
+  // Test basic model loading
+  console.log("\n🔄 Step 1: Testing model loading...");
+  const testAnswers = {
+    internalVoice: "I'm confused about this assignment",
+    eightyPercentThought: "I think I might fail",
+    whyBestWork: "I need this to be perfect",
+    avoidanceDuration: "I've been staring at this for hours",
+    helpSeeking: "I'm scared to ask for help"
+  };
+  
+  console.log("📋 Test answers:", testAnswers);
+  
+  // Test embedding computation
+  console.log("\n🔄 Step 2: Testing embedding computation...");
+  const testVector = await computeEmbeddingVector(testAnswers);
+  console.log(`✅ Test embedding computed: ${testVector.length} dimensions`);
+  
+  // Test score computation
+  console.log("\n🔄 Step 3: Testing score computation...");
+  const testScores = await computeEmbeddingScores(testAnswers);
+  console.log(`✅ Test scores computed`);
+  
+  console.log("\n📊 TEST RESULTS:");
+  Object.entries(testScores).forEach(([type, score]) => {
+    console.log(`   ${type}: ${score.toFixed(6)}`);
+  });
+  
+  // Check if we have all 6 types
+  const typeCount = Object.keys(testScores).length;
+  const uniqueScores = new Set(Object.values(testScores).map(s => s.toFixed(4)));
+  
+  console.log(`\n🔍 ANALYSIS:`);
+  console.log(`   Types found: ${typeCount}/6`);
+  console.log(`   Unique scores: ${uniqueScores.size}`);
+  console.log(`   All scores identical: ${uniqueScores.size === 1 ? 'YES ❌' : 'NO ✅'}`);
+  
+  if (typeCount < 6) {
+    console.warn(`⚠️  MISSING TYPES: ${6 - typeCount} types not found`);
+  }
+  
+  if (uniqueScores.size === 1) {
+    console.warn(`⚠️  ALL SCORES IDENTICAL: This indicates a problem!`);
+  }
+  
+  console.log("\n✅ DEBUG FUNCTION COMPLETED SUCCESSFULLY");
+  console.log("=".repeat(80) + "\n");
+  
+  return {
+    success: true,
+    typeCount,
+    uniqueScores: uniqueScores.size,
+    scores: testScores
+  };
+  
+} catch (error) {
+  console.error("\n❌ DEBUG FUNCTION FAILED:");
+  console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+  if (error instanceof Error && error.stack) {
+    console.error(`   Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+  }
+  console.log("=".repeat(80) + "\n");
+  
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : String(error)
+  };
+}
 }

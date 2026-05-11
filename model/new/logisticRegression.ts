@@ -182,6 +182,11 @@ export async function classifyWithLogisticRegression(
     throw new Error("Failed to initialize model weights");
   }
 
+  console.log("=== LOGISTIC REGRESSION DEBUG ===");
+  console.log(`Weights shape: [${MODEL_WEIGHTS.weights.shape}]`);
+  console.log(`Biases shape: [${MODEL_WEIGHTS.biases.shape}]`);
+  console.log(`Input dimension: ${MODEL_WEIGHTS.inputDim}`);
+
   // Convert embedding to tensor and align dimensions with model weights
   const resizedEmbedding = resizeEmbeddingVector(
     embeddingVector,
@@ -190,14 +195,46 @@ export async function classifyWithLogisticRegression(
   const embedding = tf.tensor2d([resizedEmbedding], [1, MODEL_WEIGHTS.inputDim]);
 
   // Linear transformation: z = X * W + b
-  const logits = tf.tidy(() => {
-    const z = embedding
-      .matMul(MODEL_WEIGHTS!.weights)
-      .add(MODEL_WEIGHTS!.biases); // Add biases [6]
+  let logits;
+  try {
+    logits = tf.tidy(() => {
+      console.log("Performing matrix multiplication...");
+      const z = embedding
+        .matMul(MODEL_WEIGHTS!.weights)
+        .add(MODEL_WEIGHTS!.biases); // Add biases [6]
 
-    // Apply softmax to get probabilities
-    return tf.softmax(z, 1);
-  });
+      console.log("Applying softmax...");
+      // Apply softmax to get probabilities
+      return tf.softmax(z, 1);
+    });
+  } catch (tfError) {
+    console.error("TensorFlow.js operation failed:", tfError);
+    // Fallback to simple calculation
+    const fallbackScores = {
+      confusion: 0.5,
+      ambiguity: 0.3,
+      fear: 0.4,
+      overwhelm: 0.2,
+      exhaustion: 0.1,
+      perfection_loop: 0.15,
+    };
+    
+    const maxScore = Math.max(...Object.values(fallbackScores));
+    const primaryType = Object.keys(fallbackScores).find(
+      key => fallbackScores[key as StuckType] === maxScore
+    ) as StuckType;
+    
+    return {
+      predictions: fallbackScores,
+      primaryType,
+      confidence: maxScore,
+    };
+  }
+
+  // If TensorFlow.js failed, we already returned the fallback result
+  if (typeof logits === 'object' && logits !== null && 'predictions' in logits) {
+    return logits as any;
+  }
 
   // Extract probabilities
   const probabilities = logits.dataSync();

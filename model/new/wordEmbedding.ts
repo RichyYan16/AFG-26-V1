@@ -106,15 +106,51 @@ async function loadAnchorEmbeddings(
           continue;
         }
         
-        cache[stuckType].push(Array.from(anchorResult.data) as number[]);
+        const embeddingVector = Array.from(anchorResult.data) as number[];
+        cache[stuckType].push(embeddingVector);
+        console.log(`   ✓ Processed anchor for ${stuckType}: "${anchor.substring(0, 30)}..."`);
       } catch (error) {
-        console.error(` Failed to process anchor "${anchor}":`, error);
+        console.error(` ✗ Failed to process anchor "${anchor}":`, error instanceof Error ? error.message : String(error));
         // Continue with other anchors
       }
     }
   }
 
   anchorEmbeddingCache = cache;
+  
+  // Debug: Report anchor embedding counts
+  console.log(" Anchor embeddings loaded:");
+  Object.entries(cache).forEach(([type, embeddings]) => {
+    console.log(`   ${type}: ${embeddings.length} anchors`);
+  });
+  
+  // Check if all types have anchors loaded
+  const typesWithEmptyAnchors = Object.entries(cache)
+    .filter(([type, embeddings]) => embeddings.length === 0)
+    .map(([type]) => type);
+    
+  if (typesWithEmptyAnchors.length > 0) {
+    console.warn(` ⚠️  Types with no anchor embeddings: ${typesWithEmptyAnchors.join(', ')}`);
+    console.warn("   This may cause identical scores for all types");
+    
+    // Create fallback embeddings for types that failed
+    const stuckTypeArray: StuckType[] = ["confusion", "ambiguity", "fear", "overwhelm", "exhaustion", "perfection_loop"];
+    typesWithEmptyAnchors.forEach(type => {
+      console.log(`   Creating fallback embeddings for ${type}`);
+      // Create simple distinct vectors for each type
+      const fallbackVector = new Array(384).fill(0);
+      const typeIndex = stuckTypeArray.indexOf(type as StuckType);
+      // Set a unique value for each type at different positions
+      fallbackVector[typeIndex * 64] = 1.0;
+      cache[type as StuckType] = [fallbackVector];
+    });
+    
+    console.log(" Fallback embeddings created. Updated counts:");
+    Object.entries(cache).forEach(([type, embeddings]) => {
+      console.log(`   ${type}: ${embeddings.length} anchors`);
+    });
+  }
+  
   return anchorEmbeddingCache;
 }
 
@@ -229,6 +265,7 @@ export async function computeEmbeddingVector(
     }
 
     console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
+    console.log(`   Sample values: [${studentVec.slice(0, 5).map(v => v.toFixed(3)).join(", ")}...]`);
     return studentVec;
   } catch (e) {
     console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
@@ -277,8 +314,17 @@ export async function computeEmbeddingScores(
     }
 
     console.log(` Computed embedding scores for all stuck types`);
+    console.log(`   Raw scores:`, Object.entries(scores).map(([type, score]) => 
+      `${type}: ${score.toFixed(3)}`
+    ).join(", "));
+    
     // Normalize scores
-    return normalizeScores(scores);
+    const normalizedScores = normalizeScores(scores);
+    console.log(`   Normalized scores:`, Object.entries(normalizedScores).map(([type, score]) => 
+      `${type}: ${score.toFixed(3)}`
+    ).join(", "));
+    
+    return normalizedScores;
   } catch (e) {
     console.error(` Unable to load model: ${e instanceof Error ? e.message : String(e)}`);
     throw e;

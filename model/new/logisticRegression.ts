@@ -139,10 +139,12 @@ async function initializeModelWeights() {
     console.error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
     console.error(`   Initializing with random weights as fallback\n`);
     const inputDim = EMBEDDING_MODEL_CONFIG.dimension;
-    // Fallback: Initialize with small random weights
+    // Fallback: Use structured weights to ensure distinct predictions
+    const fallbackData = getFallbackWeights();
+    const weightTensor = tf.tensor2d(fallbackData.weights, [inputDim, 6]);
     MODEL_WEIGHTS = {
-      weights: tf.randomUniform([inputDim, 6], -0.1, 0.1),
-      biases: tf.zeros([6]),
+      weights: weightTensor,
+      biases: tf.tensor1d(fallbackData.biases),
       inputDim,
     };
   }

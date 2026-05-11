@@ -197,10 +197,10 @@ export const QUESTION_WEIGHTS = {
 export const EMBEDDING_MODEL_CONFIG = {
   /* The embedding model label used by the app's vector logic. */
   model: "sentence-bert",
-  /* Sentence-BERT MiniLM produces 384-dimensional embeddings. */
+  /* paraphrase-MiniLM-L3-v2 produces 384-dimensional embeddings. */
   dimension: 384,
   /* Hosted model identifier used by Xenova's transformers runtime. */
-  modelUrl: "Xenova/all-MiniLM-L6-v2",
+  modelUrl: "Xenova/paraphrase-MiniLM-L3-v2",
   /* Cache embeddings locally to avoid repeated recomputation. */
   cacheEmbeddings: true,
 } as const;

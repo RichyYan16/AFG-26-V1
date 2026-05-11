@@ -21,7 +21,6 @@ import { handleAsyncError, ERROR_MESSAGES } from "./utils/errorHandling";
 import { initializeCache, cacheQuestionnaire, getCachedQuestionnaire } from "./utils/cache";
 import { useTimer } from "./hooks/useTimer";
 import { useHistory } from "./hooks/useHistory";
-import { debugEmbeddingModel } from "@/model/new/index";
 
 import { Header } from "./components/Header";
 import { Navigation } from "./components/Navigation";
@@ -204,15 +203,7 @@ export default function StuckApp() {
   async function startQuestionnaire(): Promise<void> {
     setLoading(true);
     setShowIntroduction(false);
-    
-    // DEBUG: Call embedding model debug function
-    console.log("🧪 DEBUG: Calling embedding model debug function from page.tsx");
-    debugEmbeddingModel().then(result => {
-      console.log("🧪 DEBUG RESULT:", result);
-    }).catch(error => {
-      console.error("🧪 DEBUG ERROR:", error);
-    });
-    
+        
     try {
       const response = await requestAssessment({}, history);
       if (response.status === "needs_more_answers") {

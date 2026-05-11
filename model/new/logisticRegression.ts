@@ -10,10 +10,10 @@
  */
 
 import * as tf from "@tensorflow/tfjs";
-import { readFileSync } from "fs";
-import { join } from "path";
 import type { StuckType } from "./types";
 import { EMBEDDING_MODEL_CONFIG } from "./weights";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 // Stuck types in order (for one-hot encoding)
 const STUCK_TYPES: StuckType[] = [

@@ -25,7 +25,7 @@ import type {
  * Main diagnostic function - EMBEDDINGS ONLY
  * 1. Computes embedding vector [a, b, c, ...] from responses
  * 2. Logistic Regression classifier turns vector into stuck type prediction
- * 3. Returns ranked confidence levels (high to low) + summary
+ * 3. Returns softmax-normalized scores (sum to 100%) + summary
  */
 export async function diagnoseWithHybridModel(
   answers: DiagnosticAnswers,

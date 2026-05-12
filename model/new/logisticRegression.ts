@@ -12,6 +12,8 @@
 import * as tf from "@tensorflow/tfjs";
 import type { StuckType } from "./types";
 import { EMBEDDING_MODEL_CONFIG } from "./weights";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 // Stuck types in order (for one-hot encoding)
 const STUCK_TYPES: StuckType[] = [
@@ -35,42 +37,6 @@ let MODEL_WEIGHTS: {
   inputDim: number;
 } | null = null;
 
-/**
- * Get hardcoded fallback weights when model loading fails
- * Provides reasonable default behavior for all stuck types
- */
-function getFallbackWeights(): LogisticWeightsFile {
-  const inputDim = 384;
-  const outputDim = 6;
-  
-  // Create weights as [inputDim][outputDim] array
-  const weights: number[][] = [];
-  
-  for (let i = 0; i < inputDim; i++) {
-    const row: number[] = [];
-    for (let j = 0; j < outputDim; j++) {
-      // First 6 dimensions have stronger, distinct weights
-      if (i < 6) {
-        if (i === j) {
-          row.push(0.5); // Strong positive for matching type
-        } else {
-          row.push(-0.1); // Small negative for other types
-        }
-      } else {
-        // Remaining dimensions have small random weights
-        row.push(Math.random() * 0.2 - 0.1);
-      }
-    }
-    weights.push(row);
-  }
-  
-  return {
-    inputDim,
-    weights,
-    biases: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-  };
-}
-
 interface LogisticWeightsFile {
   weights: number[][];
   biases: number[];
@@ -87,16 +53,23 @@ async function initializeModelWeights() {
     // Load weights from JSON file
     let data: LogisticWeightsFile;
     
-    // Edge Runtime: use fetch to get weights from GitHub
+    // Node.js runtime: use fs to read local file
     try {
-      const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
+      const weightsPath = join(process.cwd(), 'public', 'logisticRegressionWeights.json');
+      const fileContent = readFileSync(weightsPath, 'utf-8');
+      data = JSON.parse(fileContent) as LogisticWeightsFile;
+    } catch (fileError) {
+      console.error("Failed to read local weights file, trying GitHub:", fileError);
+      try {
+        const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
+        if (!response.ok) {
+          throw new Error(`Failed to fetch weights from GitHub: ${response.status} ${response.statusText}`);
+        }
+        data = (await response.json()) as LogisticWeightsFile;
+      } catch (githubError) {
+        console.error("Failed to fetch from GitHub:", githubError);
+        throw new Error(`Unable to load model weights: ${githubError instanceof Error ? githubError.message : String(githubError)}`);
       }
-      data = (await response.json()) as LogisticWeightsFile;
-    } catch (githubError) {
-      console.warn("Failed to fetch from GitHub, using hardcoded fallback:", githubError);
-      data = getFallbackWeights();
     }
 
     // Create tensors from loaded data.
@@ -134,14 +107,7 @@ async function initializeModelWeights() {
     console.log(`   Biases shape: [6]\n`);
   } catch (error) {
     console.error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
-    console.error(`   Initializing with random weights as fallback\n`);
-    const inputDim = EMBEDDING_MODEL_CONFIG.dimension;
-    // Fallback: Initialize with small random weights
-    MODEL_WEIGHTS = {
-      weights: tf.randomUniform([inputDim, 6], -0.1, 0.1),
-      biases: tf.zeros([6]),
-      inputDim,
-    };
+    throw error;
   }
 }
 
@@ -192,46 +158,16 @@ export async function classifyWithLogisticRegression(
   const embedding = tf.tensor2d([resizedEmbedding], [1, MODEL_WEIGHTS.inputDim]);
 
   // Linear transformation: z = X * W + b
-  let logits;
-  try {
-    logits = tf.tidy(() => {
-      console.log("Performing matrix multiplication...");
-      const z = embedding
-        .matMul(MODEL_WEIGHTS!.weights)
-        .add(MODEL_WEIGHTS!.biases); // Add biases [6]
+  const logits = tf.tidy(() => {
+    console.log("Performing matrix multiplication...");
+    const z = embedding
+      .matMul(MODEL_WEIGHTS!.weights)
+      .add(MODEL_WEIGHTS!.biases); // Add biases [6]
 
-      console.log("Applying softmax...");
-      // Apply softmax to get probabilities
-      return tf.softmax(z, 1);
-    });
-  } catch (tfError) {
-    console.error("TensorFlow.js operation failed:", tfError);
-    // Fallback to simple calculation
-    const fallbackScores = {
-      confusion: 0.5,
-      ambiguity: 0.3,
-      fear: 0.4,
-      overwhelm: 0.2,
-      exhaustion: 0.1,
-      perfection_loop: 0.15,
-    };
-    
-    const maxScore = Math.max(...Object.values(fallbackScores));
-    const primaryType = Object.keys(fallbackScores).find(
-      key => fallbackScores[key as StuckType] === maxScore
-    ) as StuckType;
-    
-    return {
-      predictions: fallbackScores,
-      primaryType,
-      confidence: maxScore,
-    };
-  }
-
-  // If TensorFlow.js failed, we already returned the fallback result
-  if (typeof logits === 'object' && logits !== null && 'predictions' in logits) {
-    return logits as any;
-  }
+    console.log("Applying softmax...");
+    // Apply softmax to get probabilities
+    return tf.softmax(z, 1);
+  });
 
   // Extract probabilities
   const probabilities = logits.dataSync();

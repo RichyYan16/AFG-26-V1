@@ -266,59 +266,16 @@ export async function computeEmbeddingScores(
       scores[stuckType] = typeScore / anchorVectors.length;
     }
 
-    console.log(` Computed embedding scores for all stuck types`);
-    // Normalize scores
-    return normalizeScores(scores);
+    console.log(` Computed raw embedding scores for all stuck types`);
+    // Apply softmax normalization to ensure scores sum to 1 (100%)
+    return normalizeWithSoftmax(scores);
   } catch (e) {
     console.error(` Unable to compute scores: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }
 
-/**
- * Compute cosine similarity between two vectors
- * Returns value between -1 and 1 (typically 0-1 for embeddings)
- */
-function cosineSimilarity(vecA: number[], vecB: number[]): number {
-  let dotProduct = 0;
-  let magnitudeA = 0;
-  let magnitudeB = 0;
-
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    magnitudeA += vecA[i] * vecA[i];
-    magnitudeB += vecB[i] * vecB[i];
-  }
-
-  magnitudeA = Math.sqrt(magnitudeA);
-  magnitudeB = Math.sqrt(magnitudeB);
-
-  if (magnitudeA === 0 || magnitudeB === 0) return 0;
-
-  return dotProduct / (magnitudeA * magnitudeB);
-}
-
-/**
- * Normalize scores to 0-1 range using min-max normalization
- */
-function normalizeScores(
-  scores: Record<StuckType, number>,
-): Record<StuckType, number> {
-  const maxScore = Math.max(...Object.values(scores));
-  const minScore = Math.min(...Object.values(scores));
-  const range = maxScore - minScore || 1;
-
-  const normalized = Object.entries(scores).reduce(
-    (acc, [type, score]) => {
-      acc[type as StuckType] = (score - minScore) / range;
-      return acc;
-    },
-    {} as Record<StuckType, number>,
-  );
-
-  return normalized;
-}
-
+// ... (rest of the code remains the same)
 /**
  * Apply behavioral signal boosts to embedding scores
  * E.g., "rereading" behavior boosts confusion score
@@ -352,8 +309,55 @@ export function applyBehavioralSignalBoosts(
     }
   }
 
-  // Re-normalize after boosts
-  return normalizeScores(boosted);
+  // Apply softmax normalization to ensure scores sum to 1 (100%)
+  return normalizeWithSoftmax(boosted);
+}
+
+/**
+ * Compute cosine similarity between two vectors
+ * Returns value between -1 and 1 (typically 0-1 for embeddings)
+ */
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  let dotProduct = 0;
+  let magnitudeA = 0;
+  let magnitudeB = 0;
+
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    magnitudeA += vecA[i] * vecA[i];
+    magnitudeB += vecB[i] * vecB[i];
+  }
+
+  magnitudeA = Math.sqrt(magnitudeA);
+  magnitudeB = Math.sqrt(magnitudeB);
+
+  if (magnitudeA === 0 || magnitudeB === 0) return 0;
+
+  return dotProduct / (magnitudeA * magnitudeB);
+}
+
+/**
+ * Apply softmax normalization to ensure scores sum to 1 (100%)
+ * This maintains the probabilistic interpretation while allowing boosts
+ */
+function normalizeWithSoftmax(
+  scores: Record<StuckType, number>,
+): Record<StuckType, number> {
+  const values = Object.values(scores);
+  const maxVal = Math.max(...values);
+  
+  // Subtract max for numerical stability
+  const expValues = values.map(v => Math.exp(v - maxVal));
+  const sumExp = expValues.reduce((sum, val) => sum + val, 0);
+  
+  const normalized: Record<StuckType, number> = {} as Record<StuckType, number>;
+  const types = Object.keys(scores) as StuckType[];
+  
+  for (let i = 0; i < types.length; i++) {
+    normalized[types[i]] = expValues[i] / sumExp;
+  }
+  
+  return normalized;
 }
 
 /**

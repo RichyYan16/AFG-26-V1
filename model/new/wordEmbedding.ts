@@ -33,14 +33,10 @@ async function loadModel() {
   }
 
   try {
-    console.log('Loading embedding model (Xenova/all-MiniLM-L6-v2)...');
     embeddingModel = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-    console.log('Embedding model loaded successfully (384 dimensions)');
     return embeddingModel;
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`CRITICAL: Cannot load embedding model: ${errorMsg}`);
-    throw new Error(`Failed to load embedding model: ${errorMsg}`);
+    throw new Error(`Failed to load embedding model: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -78,15 +74,12 @@ async function loadAnchorEmbeddings(): Promise<Record<StuckType, number[][]>> {
               normalize: true,
             });
             
-            // Safety check: ensure result and result.data are valid
             if (!result || !result.data) {
-              console.error(` Invalid anchor result for "${anchor}":`, result);
               continue;
             }
             
             cache[stuckType].push(Array.from(result.data) as number[]);
           } catch (error) {
-            console.error(` Failed to process anchor "${anchor}":`, error);
             // Continue with other anchors
           }
         }
@@ -102,7 +95,6 @@ async function loadAnchorEmbeddings(): Promise<Record<StuckType, number[][]>> {
     anchorEmbeddingCache = result;
     return anchorEmbeddingCache;
   } catch (error) {
-    console.error(' Anchor embedding processing failed:', error);
     throw new Error(`Failed to load anchor embeddings: ${error}`);
   }
 }
@@ -180,48 +172,35 @@ export async function computeEmbeddingVector(
   try {
     const model = await loadModel();
 
-    // Safety check: ensure answers is a valid object
     if (!answers || typeof answers !== 'object') {
-      console.error(' Invalid answers provided to computeEmbeddingVector:', answers);
       throw new Error('Invalid answers: must be a valid object');
     }
 
-    // Combine all answers into single text
     const studentText = Object.values(answers)
       .filter(Boolean)
       .join(" ");
 
-    // Ensure we have some text to embed
     if (!studentText.trim()) {
-      console.error(' No valid text found in answers for embedding');
       throw new Error('No valid text found in answers for embedding');
     }
 
-    // Embed student response using Sentence-BERT
     const result = await model(studentText, {
       pooling: "mean",
       normalize: true,
     });
 
-    // Safety check: ensure result and result.data are valid
     if (!result || !result.data) {
-      console.error(' Invalid model result:', result);
       throw new Error('Invalid model result: result or result.data is null/undefined');
     }
 
-    // Extract embedding vector from result
     const studentVec = Array.from(result.data) as number[];
 
-    // Safety check: ensure we got a valid vector
     if (!studentVec || studentVec.length === 0) {
-      console.error(' Invalid embedding vector:', studentVec);
       throw new Error('Invalid embedding vector: empty or null');
     }
 
-    console.log(` Computed embedding vector with ${studentVec.length} dimensions`);
     return studentVec;
   } catch (e) {
-    console.error(` Unable to compute embedding: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }
@@ -266,11 +245,9 @@ export async function computeEmbeddingScores(
       scores[stuckType] = typeScore / anchorVectors.length;
     }
 
-    console.log(` Computed raw embedding scores for all stuck types`);
     // Apply softmax normalization to ensure scores sum to 1 (100%)
     return normalizeWithSoftmax(scores);
   } catch (e) {
-    console.error(` Unable to compute scores: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
   }
 }

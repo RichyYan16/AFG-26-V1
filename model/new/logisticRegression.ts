@@ -145,11 +145,6 @@ export async function classifyWithLogisticRegression(
     throw new Error("Failed to initialize model weights");
   }
 
-  console.log("=== LOGISTIC REGRESSION DEBUG ===");
-  console.log(`Weights shape: [${MODEL_WEIGHTS.weights.shape}]`);
-  console.log(`Biases shape: [${MODEL_WEIGHTS.biases.shape}]`);
-  console.log(`Input dimension: ${MODEL_WEIGHTS.inputDim}`);
-
   // Convert embedding to tensor and align dimensions with model weights
   const resizedEmbedding = resizeEmbeddingVector(
     embeddingVector,
@@ -159,12 +154,10 @@ export async function classifyWithLogisticRegression(
 
   // Linear transformation: z = X * W + b
   const logits = tf.tidy(() => {
-    console.log("Performing matrix multiplication...");
     const z = embedding
       .matMul(MODEL_WEIGHTS!.weights)
       .add(MODEL_WEIGHTS!.biases); // Add biases [6]
 
-    console.log("Applying softmax...");
     // Apply softmax to get probabilities
     return tf.softmax(z, 1);
   });

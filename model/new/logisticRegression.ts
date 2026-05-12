@@ -59,7 +59,6 @@ async function initializeModelWeights() {
       const fileContent = readFileSync(weightsPath, 'utf-8');
       data = JSON.parse(fileContent) as LogisticWeightsFile;
     } catch (fileError) {
-      console.error("Failed to read local weights file, trying GitHub:", fileError);
       try {
         const response = await fetch("https://raw.githubusercontent.com/RichyYan16/AFG-26-V1/main/public/logisticRegressionWeights.json");
         if (!response.ok) {
@@ -67,7 +66,6 @@ async function initializeModelWeights() {
         }
         data = (await response.json()) as LogisticWeightsFile;
       } catch (githubError) {
-        console.error("Failed to fetch from GitHub:", githubError);
         throw new Error(`Unable to load model weights: ${githubError instanceof Error ? githubError.message : String(githubError)}`);
       }
     }
@@ -102,12 +100,8 @@ async function initializeModelWeights() {
       biases: tf.tensor1d(data.biases),
       inputDim,
     };
-    console.log("Logistic regression weights loaded successfully");
-    console.log(`   Weights shape: [${inputDim}, 6]`);
-    console.log(`   Biases shape: [6]\n`);
   } catch (error) {
-    console.error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
-    throw error;
+    throw new Error(`Unable to load model: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
